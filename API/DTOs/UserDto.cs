@@ -12,5 +12,5 @@ namespace API.DTOs;
 
         public required string Token { get; set; }
 
-    //    public string? Image { get; set; } optional
+        public string? ImageUrl { get; set; } //optional
     }
