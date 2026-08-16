@@ -13,4 +13,6 @@ namespace API.DTOs;
         public required string Token { get; set; }
 
         public string? ImageUrl { get; set; } //optional
+
+        //الدور 
     }

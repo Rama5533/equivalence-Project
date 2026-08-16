@@ -23,12 +23,12 @@ public class Member
 
     public required string Gender { get; set; }
 
-    public  string? Discription { get; set; }
+    public string? Discription { get; set; }
 
     //Navigation property
-[JsonIgnore]
-public List<Photo> Photos { get; set; }=[];
-[JsonIgnore]
+    [JsonIgnore]
+    public List<Photo> Photos { get; set; } = [];
+    [JsonIgnore]
     [ForeignKey(nameof(Id))]
     public AppUser User { get; set; } = null!;
 }

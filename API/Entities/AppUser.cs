@@ -1,26 +1,27 @@
 using API.DTOs;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace API.Entities;
 
-public class AppUser
+public class AppUser : IdentityUser
 {
     //the ID -->represent the rows
-    public  string Id { get; set; }=Guid.NewGuid().ToString();
 
-//these are represent the columns
-    public required string DisplayName { get; set; } 
-    public required string Email { get; set; }
+    //these are represent the columns
+    public required string DisplayName { get; set; }
 
     public string? ImageUrl { get; set; }
 
-    public required byte[] PasswordHash { get; set; }
-    public required byte[] PasswordSalt { get; set; }
+    public string? RefreshToken { get; set; }
 
-    internal ActionResult<UserDto> ToDto()
-    {
-        throw new NotImplementedException();
-    }
-//Nav property
-public Member Member { get; set; }=null!;
+    public DateTime? RefreshTokenExpirey { get; set; }
+
+
+    /*  internal ActionResult<UserDto> ToDto()
+      {
+          throw new NotImplementedException();
+      }*/
+    //Nav property
+    public Member Member { get; set; } = null!;
 }
