@@ -9,6 +9,8 @@ using API.Middleware;
 using API.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
+using API.SinglR;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,8 +23,12 @@ builder.Services.AddDbContext<AppDbContext>(opt =>
 });
 builder.Services.AddCors();
 builder.Services.AddScoped<ITokenService, TokenService>(); //or AddTransient or AddSingleton
-builder.Services.AddScoped<IMemberRepository, MemberRepository>();
+builder.Services.AddScoped<IUnitOfWork,UnitOfWorks>();
+// builder.Services.AddScoped<IMemberRepository, MemberRepository>();// حاليا هاد نفس الي فوق
+
 // builder.Services.AddScoped<LogUserActivity>();
+// builder.Services.AddSignalR();
+
 builder.Services.AddIdentityCore<AppUser>(opt =>
 {
     opt.Password.RequireNonAlphanumeric = false;
@@ -44,6 +50,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         ValidateIssuer = false,
         ValidateAudience = false
     };
+
+    // Options.Events = new JwtBearerEvents
+    // {
+    //     OnMessageReceived = context =>
+    //     {
+    //         var accessToken=context.Request.Query["access_token"];
+
+    //         var path=context.HttpContext.Request.Path;
+    //         if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+    //         {
+    //             context.Token=accessToken;
+    //         }
+    //         return Task.CompletedTask;
+    //     }
+
+
+    // };
+
 });
 
 builder.Services.AddAuthorizationBuilder()
@@ -68,6 +92,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+
+// app.MapHub<PersenceHub>("hubs/presence");
 
 using var scope = app.Services.CreateScope();
 var services = scope.ServiceProvider;

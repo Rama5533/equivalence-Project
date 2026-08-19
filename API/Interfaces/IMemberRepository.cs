@@ -5,7 +5,7 @@ namespace API.Interfaces;
     public interface IMemberRepository
     {
         void Update(Member member);
-        Task<bool> SaveAllAsync();
+        Task<bool> SaveAllAsync();// حاليا بتضل لما اغير الprogram.cs بتلتغي
 
         Task<IReadOnlyList<Member>> GetMembersAsync();
         Task<Member?> GetMemberByIdAsync(string id);

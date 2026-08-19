@@ -37,7 +37,7 @@ public class MemberRepository(AppDbContext context) : IMemberRepository
     public async Task<bool> SaveAllAsync()
     {
         return await context.SaveChangesAsync() > 0;
-    }
+    } //وهاد نفس الاشي بتلغى لما اغير الprogram.cs
 
     public void Update(Member member)
     {

@@ -14,7 +14,7 @@ namespace API.Controllers
 {
 
     [Authorize]
-    public class MembersController(IMemberRepository memberRepository) : BaseApiController
+    public class MembersController(IMemberRepository memberRepository) : BaseApiController // هون لما اغير الي عند البروجرام.سي اس بغير الImemberReositort لَ IUnitOfWork uow وبسويلها فنكشناتها الي تحت
     {
 
         [HttpGet]
@@ -54,12 +54,13 @@ namespace API.Controllers
             member.Discription = memberUpdateDto.Discription ?? member.Discription;
             member.City = memberUpdateDto.City ?? member.City;
             member.Country = memberUpdateDto.Country ?? member.Country;
-if(member.User !=null){
-            member.User.DisplayName = memberUpdateDto.DisplayName ?? member.User.DisplayName;
-}
-             memberRepository.Update(member); //optional
+            if (member.User != null)
+            {
+                member.User.DisplayName = memberUpdateDto.DisplayName ?? member.User.DisplayName;
+            }
+            memberRepository.Update(member); //optional
 
-            if (await memberRepository.SaveAllAsync()) return NoContent();
+            if (await memberRepository.SaveAllAsync()) return NoContent();//the save allchanges here رح تلتغى ويصير بدالها uow.Complete();
 
             return BadRequest("Faild to update member");
         }
