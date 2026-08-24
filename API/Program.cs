@@ -21,7 +21,17 @@ builder.Services.AddDbContext<AppDbContext>(opt =>
 {
     opt.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
-builder.Services.AddCors();
+builder.Services.AddCors(Options =>
+    {
+        Options.AddPolicy("AllowReactApp", policy =>
+        {
+            policy.WithOrigins("http://localhost:3000", "http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+        });
+    });
+
 builder.Services.AddScoped<ITokenService, TokenService>(); //or AddTransient or AddSingleton
 builder.Services.AddScoped<IUnitOfWork,UnitOfWorks>();
 // builder.Services.AddScoped<IMemberRepository, MemberRepository>();// حاليا هاد نفس الي فوق
@@ -80,12 +90,14 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 app.UseMiddleware<ExceptionMiddleware>();
 
+app.UseCors("AllowReactApp");
+
 //هاي لتشبيك الفرونت اند بالباك اند 
-app.UseCors(x =>
-    x.AllowAnyHeader()
-    .AllowAnyMethod()
-    .AllowCredentials()
-    .WithOrigins("http://localhost:4200", "http://localhost:4200"));
+// app.UseCors(x =>
+//     x.AllowAnyHeader()
+//     .AllowAnyMethod()
+//     .AllowCredentials()
+//     .WithOrigins("http://localhost:4200", "http://localhost:4200"));
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -104,6 +116,7 @@ try
     var userManager = services.GetRequiredService<UserManager<AppUser>>();
     await context.Database.MigrateAsync();
     await Seed.SeedUsers(userManager);
+
 }
 catch (Exception ex)
 {
