@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using API.SinglR;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using API.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -86,12 +87,22 @@ builder.Services.AddAuthorizationBuilder()
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.Configure<MailSettings>(
+    builder.Configuration.GetSection(nameof(MailSettings)));
+
+builder.Services.AddTransient<IMailService, MailService>();
+
 var app = builder.Build();
 
 app.UseSwagger();
 app.UseSwaggerUI();
 // Configure the HTTP request pipeline.
 app.UseMiddleware<ExceptionMiddleware>();
+
+
+app.UseHttpsRedirection();//اذا اجاها طلبhttp بتحوله لhttps
+
 
 app.UseCors("AllowReactApp");
 
