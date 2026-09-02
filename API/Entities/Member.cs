@@ -8,7 +8,7 @@ public class Member
 {
     public string Id { get; set; } = null!;
 
-    public DateOnly DateOfBirth { get; set; }
+    // public DateOnly DateOfBirth { get; set; }
 
     public required string DisplayName { get; set; }
 
@@ -17,13 +17,13 @@ public class Member
 
     public DateTime LastActive { get; set; } = DateTime.UtcNow;
 
-    public required string City { get; set; }
+    // public required string City { get; set; }
 
-    public required string Country { get; set; }
+    // public required string Country { get; set; }
 
-    public required string Gender { get; set; }
+    // public required string Gender { get; set; }
 
-    public string? Discription { get; set; }
+    // public string? Discription { get; set; }
 
     //Navigation property
     [JsonIgnore]

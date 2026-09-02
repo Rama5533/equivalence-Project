@@ -14,10 +14,11 @@ namespace API.Controllers
 {
 
     [Authorize]
+   
     public class MembersController(IMemberRepository memberRepository) : BaseApiController // هون لما اغير الي عند البروجرام.سي اس بغير الImemberReositort لَ IUnitOfWork uow وبسويلها فنكشناتها الي تحت
     {
 
-        [HttpGet]
+        [HttpGet("MembersList")]
         public async Task<ActionResult<IReadOnlyList<Member>>> GetMembers()
         {
             return Ok(await memberRepository.GetMembersAsync());
@@ -51,9 +52,9 @@ namespace API.Controllers
             if (member == null) return BadRequest("Could not get member");
 
             member.DisplayName = memberUpdateDto.DisplayName ?? member.DisplayName;
-            member.Discription = memberUpdateDto.Discription ?? member.Discription;
-            member.City = memberUpdateDto.City ?? member.City;
-            member.Country = memberUpdateDto.Country ?? member.Country;
+            // member.Discription = memberUpdateDto.Discription ?? member.Discription;
+            // member.City = memberUpdateDto.City ?? member.City;
+            // member.Country = memberUpdateDto.Country ?? member.Country;
             if (member.User != null)
             {
                 member.User.DisplayName = memberUpdateDto.DisplayName ?? member.User.DisplayName;

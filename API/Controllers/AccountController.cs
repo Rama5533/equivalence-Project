@@ -26,10 +26,10 @@ public class AccountController(UserManager<AppUser> userManager, ITokenService t
             Member = new Member
             {
                 DisplayName = registerDto.DisplayName,
-                DateOfBirth = registerDto.DateOfBirth,
-                Country = registerDto.Country,
-                City = registerDto.City,
-                Gender = registerDto.Gender
+                // DateOfBirth = registerDto.DateOfBirth,
+                // Country = registerDto.Country,
+                // City = registerDto.City,
+                // Gender = registerDto.Gender
             }
         };
 

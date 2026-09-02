@@ -33,8 +33,8 @@ builder.Services.AddCors(Options =>
     });
 
 builder.Services.AddScoped<ITokenService, TokenService>(); //or AddTransient or AddSingleton
-builder.Services.AddScoped<IUnitOfWork,UnitOfWorks>();
-// builder.Services.AddScoped<IMemberRepository, MemberRepository>();// حاليا هاد نفس الي فوق
+// builder.Services.AddScoped<IUnitOfWork,UnitOfWorks>();
+builder.Services.AddScoped<IMemberRepository, MemberRepository>();// حاليا هاد نفس الي فوق
 
 // builder.Services.AddScoped<LogUserActivity>();
 // builder.Services.AddSignalR();
@@ -81,8 +81,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 });
 
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("RequierAdminRole", policy => policy.RequireRole("Admin"))
-    .AddPolicy("ModeratePhotoRole", policy => policy.RequireRole("Admin", "Moderator"));
+    .AddPolicy("RequierAdminRole", policy => policy.RequireRole("ADMIN"))
+    .AddPolicy("ModeratePhotoRole", policy => policy.RequireRole("ADMIN", "MODERATOR"));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

@@ -42,12 +42,12 @@ public class Seed
                 {
                     Id = member.Id,
                     DisplayName = member.DisplayName,
-                    Discription = member.Discription,
-                    DateOfBirth = member.DateOfBirth,
+                    // Discription = member.Discription,
+                    // DateOfBirth = member.DateOfBirth,
                     ImageUrl = member.ImageUrl,
-                    Gender = member.Gender,
-                    City = member.City,
-                    Country = member.Country,
+                    // Gender = member.Gender,
+                    // City = member.City,
+                    // Country = member.Country,
                     LastActive = member.LastActive,
                     Created = member.Created
                 }
