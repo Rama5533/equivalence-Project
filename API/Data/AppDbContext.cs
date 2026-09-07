@@ -10,7 +10,7 @@ namespace API.Data;
 public class AppDbContext(DbContextOptions options) : IdentityDbContext<AppUser>(options)
 {
 
-    public DbSet<Member> Members { get; set; }
+    public DbSet<Applicant> Applicants { get; set; }
 
     public DbSet<Photo> Photos { get; set; }
 
@@ -20,29 +20,84 @@ public class AppDbContext(DbContextOptions options) : IdentityDbContext<AppUser>
 
         modelBuilder.Entity<IdentityRole>()
         .HasData(
+new IdentityRole
+{
+      Id = "admin-id",
+    Name = "Admin",
+    NormalizedName = "ADMIN",
+    ConcurrencyStamp = "admin-concurrency-stamp"
+},
 
-            new IdentityRole
-            {
-                Id = "member-id",
-                Name = "Member",
-                NormalizedName = "MEMBER",
-                ConcurrencyStamp = "member-concurrency-stamp"
-            },
-            new IdentityRole
-            {
-                Id = "moderator-id",
-                Name = "Moderator",
-                NormalizedName = "MODERATOR",
-                ConcurrencyStamp = "moderator-concurrency-stamp"
-            },
-            new IdentityRole
-            {
-                Id = "admin-id",
-                Name = "Admin",
-                NormalizedName = "ADMIN",
-                ConcurrencyStamp = "admin-concurrency-stamp"
-            }
-
+new IdentityRole
+{
+    Id = "manager-id",
+    Name = "Manager",
+    NormalizedName = "MANAGER",
+    ConcurrencyStamp = "manager-concurrency-stamp"
+},
+new IdentityRole
+{
+    Id = "equivalency-id",
+    Name = "Equivalency",
+    NormalizedName = "EQUIVALENCY",
+    ConcurrencyStamp = "equivalency-concurrency-stamp"
+},
+new IdentityRole
+{
+    Id = "receiving-id",
+    Name = "Receiving",
+    NormalizedName = "RECEIVING",
+    ConcurrencyStamp = "receiving-concurrency-stamp"
+},
+new IdentityRole
+{
+    Id = "inquiry-id",
+    Name = "Inquiry",
+    NormalizedName = "INQUIRY",
+    ConcurrencyStamp = "inquiry-concurrency-stamp"
+},
+new IdentityRole
+{
+    Id = "archive-id",
+    Name = "Archive",
+    NormalizedName = "ARCHIVE",
+    ConcurrencyStamp = "archive-concurrency-stamp"
+},
+new IdentityRole
+{
+    Id = "office-id",
+    Name = "Office",
+    NormalizedName = "OFFICE",
+    ConcurrencyStamp = "office-concurrency-stamp"
+},
+new IdentityRole
+{
+    Id = "printing-id",
+    Name = "Printing",
+    NormalizedName = "PRINTING",
+    ConcurrencyStamp = "printing-concurrency-stamp"
+},
+new IdentityRole
+{
+    Id = "committee_coordinator-id",
+    Name = "Committee_Coordinator",
+    NormalizedName = "COMMITTEE_COORDINATOR",
+    ConcurrencyStamp = "committee_coordinator-concurrency-stamp"
+},
+new IdentityRole
+{
+    Id = "committee_member-id",
+    Name = "Committee_Member",
+    NormalizedName = "COMMITTEE_MEMBER",
+    ConcurrencyStamp = "committee_member-concurrency-stamp"
+},
+new IdentityRole
+{
+    Id = "applicant-id",
+    Name = "Applicant",
+    NormalizedName = "APPLICANT",
+    ConcurrencyStamp = "applicant-concurrency-stamp"
+}
         );
     }
 }

@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace API.Entities;
 
-public class Member
+public class Applicant
 {
     public string Id { get; set; } = null!;
 
@@ -12,7 +12,7 @@ public class Member
 
     public required string DisplayName { get; set; }
 
-     public string? ImageUrl { get; set; }
+    public string? ImageUrl { get; set; }
     public DateTime Created { get; set; } = DateTime.UtcNow;
 
     public DateTime LastActive { get; set; } = DateTime.UtcNow;

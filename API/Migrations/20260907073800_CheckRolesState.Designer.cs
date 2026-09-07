@@ -4,6 +4,7 @@ using API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260907073800_CheckRolesState")]
+    partial class CheckRolesState
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -100,7 +103,7 @@ namespace API.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
-            modelBuilder.Entity("API.Entities.Applicant", b =>
+            modelBuilder.Entity("API.Entities.Member", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("nvarchar(450)");
@@ -120,7 +123,7 @@ namespace API.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Applicants");
+                    b.ToTable("Members");
                 });
 
             modelBuilder.Entity("API.Entities.Photo", b =>
@@ -131,7 +134,7 @@ namespace API.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("ApplicantId")
+                    b.Property<string>("MemberId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
@@ -144,7 +147,7 @@ namespace API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ApplicantId");
+                    b.HasIndex("MemberId");
 
                     b.ToTable("Photos");
                 });
@@ -182,6 +185,13 @@ namespace API.Migrations
                             ConcurrencyStamp = "admin-concurrency-stamp",
                             Name = "Admin",
                             NormalizedName = "ADMIN"
+                        },
+                        new
+                        {
+                            Id = "member-id",
+                            ConcurrencyStamp = "member-concurrency-stamp",
+                            Name = "Member",
+                            NormalizedName = "MEMBER"
                         },
                         new
                         {
@@ -245,13 +255,6 @@ namespace API.Migrations
                             ConcurrencyStamp = "committee_member-concurrency-stamp",
                             Name = "Committee_Member",
                             NormalizedName = "COMMITTEE_MEMBER"
-                        },
-                        new
-                        {
-                            Id = "applicant-id",
-                            ConcurrencyStamp = "applicant-concurrency-stamp",
-                            Name = "Applicant",
-                            NormalizedName = "APPLICANT"
                         });
                 });
 
@@ -361,11 +364,11 @@ namespace API.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("API.Entities.Applicant", b =>
+            modelBuilder.Entity("API.Entities.Member", b =>
                 {
                     b.HasOne("API.Entities.AppUser", "User")
-                        .WithOne("Applicant")
-                        .HasForeignKey("API.Entities.Applicant", "Id")
+                        .WithOne("Member")
+                        .HasForeignKey("API.Entities.Member", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -374,13 +377,13 @@ namespace API.Migrations
 
             modelBuilder.Entity("API.Entities.Photo", b =>
                 {
-                    b.HasOne("API.Entities.Applicant", "Applicant")
+                    b.HasOne("API.Entities.Member", "Member")
                         .WithMany("Photos")
-                        .HasForeignKey("ApplicantId")
+                        .HasForeignKey("MemberId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Applicant");
+                    b.Navigation("Member");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -436,11 +439,11 @@ namespace API.Migrations
 
             modelBuilder.Entity("API.Entities.AppUser", b =>
                 {
-                    b.Navigation("Applicant")
+                    b.Navigation("Member")
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("API.Entities.Applicant", b =>
+            modelBuilder.Entity("API.Entities.Member", b =>
                 {
                     b.Navigation("Photos");
                 });

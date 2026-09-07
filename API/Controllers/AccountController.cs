@@ -23,7 +23,7 @@ public class AccountController(UserManager<AppUser> userManager, ITokenService t
             DisplayName = registerDto.DisplayName,
             Email = registerDto.Email,
             UserName = registerDto.Email,
-            Member = new Member
+            Applicant = new Applicant
             {
                 DisplayName = registerDto.DisplayName,
                 // DateOfBirth = registerDto.DateOfBirth,
@@ -45,7 +45,7 @@ public class AccountController(UserManager<AppUser> userManager, ITokenService t
             return ValidationProblem();
         }
 
-        await userManager.AddToRoleAsync(user, "Member");
+        await userManager.AddToRoleAsync(user, "APPLICANT");
 
         await SetRefreshTokenCookie(user);
 

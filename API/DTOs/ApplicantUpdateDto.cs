@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace API.DTOs;
 
-public class MemberUpdateDto
+public class ApplicantUpdateDto
 {
     public string? DisplayName { get; set; }
     // public string? Discription { get; set; }

@@ -23,5 +23,5 @@ public class AppUser : IdentityUser
           throw new NotImplementedException();
       }*/
     //Nav property
-    public Member Member { get; set; } = null!;
+    public Applicant Applicant { get; set; } = null!;
 }

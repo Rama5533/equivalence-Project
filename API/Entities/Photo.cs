@@ -13,9 +13,9 @@ namespace API.Entities
 
         //Navigation property
         [JsonIgnore]
-        public Member Member { get; set; }=null!;
+        public Applicant Applicant { get; set; }=null!;
         
-        public string MemberId { get; set; }=null!;
+        public string ApplicantId { get; set; }=null!;
 
     }
 }

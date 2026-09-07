@@ -7,7 +7,7 @@ namespace API.Interfaces;
 
     public interface IUnitOfWork
     {
-        IMemberRepository memberRepository{get;}
+        IApplicantRepository ApplicantRepository{get;}
         
         Task<bool> Complete();
         bool HasChanges();

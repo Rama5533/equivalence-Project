@@ -18,44 +18,44 @@ public class Seed
     {
         if (await userManager.Users.AnyAsync()) return;
 
-        var memberData = await File.ReadAllTextAsync("Data/UserSeedData.json");
-        var members = JsonSerializer.Deserialize<List<SeedUserDto>>(memberData);
+        var applicantData = await File.ReadAllTextAsync("Data/UserSeedData.json");
+        var applicants = JsonSerializer.Deserialize<List<SeedUserDto>>(applicantData);
 
-        if (members == null)
+        if (applicants == null)
         {
-            Console.WriteLine("No members in seed data");
+            Console.WriteLine("No applicants in seed data");
             return;
         }
 
 
-        foreach (var member in members)
+        foreach (var applicant in applicants)
         {
 
             var user = new AppUser
             {
-                Id = member.Id,
-                Email = member.Email,
-                DisplayName = member.DisplayName,
-                UserName = member.Email,
-                ImageUrl = member.ImageUrl,
-                Member = new Member
+                Id = applicant.Id,
+                Email = applicant.Email,
+                DisplayName = applicant.DisplayName,
+                UserName = applicant.Email,
+                ImageUrl = applicant.ImageUrl,
+                Applicant = new Applicant
                 {
-                    Id = member.Id,
-                    DisplayName = member.DisplayName,
-                    // Discription = member.Discription,
-                    // DateOfBirth = member.DateOfBirth,
-                    ImageUrl = member.ImageUrl,
-                    // Gender = member.Gender,
-                    // City = member.City,
-                    // Country = member.Country,
-                    LastActive = member.LastActive,
-                    Created = member.Created
+                    Id = applicant.Id,
+                    DisplayName = applicant.DisplayName,
+                    // Discription = applicant.Discription,
+                    // DateOfBirth = applicant.DateOfBirth,
+                    ImageUrl = applicant.ImageUrl,
+                    // Gender = applicant.Gender,
+                    // City = applicant.City,
+                    // Country = applicant.Country,
+                    LastActive = applicant.LastActive,
+                    Created = applicant.Created
                 }
             };
-            user.Member.Photos.Add(new Photo
+            user.Applicant.Photos.Add(new Photo
             {
-                Url = member.ImageUrl!,
-                MemberId = member.Id
+                Url = applicant.ImageUrl!,
+                ApplicantId = applicant.Id
             });
 
             var result = await userManager.CreateAsync(user, "P$$w0rd");
@@ -63,7 +63,7 @@ public class Seed
             {
                 Console.WriteLine(result.Errors.First().Description);
             }
-            await userManager.AddToRoleAsync(user, "Member");
+            await userManager.AddToRoleAsync(user, "applicant");
         }
         var admin = new AppUser
         {
@@ -74,6 +74,6 @@ public class Seed
         };
 
         await userManager.CreateAsync(admin, "Pa$$w0rd");
-        await userManager.AddToRolesAsync(admin, ["Admin", "Moderator"]);
+        await userManager.AddToRolesAsync(admin, ["Admin", "Manager"]);
     }
 }

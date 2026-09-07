@@ -9,9 +9,9 @@ namespace API.Data;
 
 public class UnitOfWorks(AppDbContext context) : IUnitOfWork
 {
-    private IMemberRepository? _memberRepository;
-    public IMemberRepository memberRepository => _memberRepository
-        ??= new MemberRepository(context);
+    private IApplicantRepository? _applicantRepository;
+    public IApplicantRepository ApplicantRepository => _applicantRepository
+        ??= new ApplicantRepository(context);
 
     public async Task<bool> Complete()
     {

@@ -8,9 +8,9 @@ namespace API.Extensions;
 
     public static class ClaimsPrincipalExtensions
     {
-        public static string GetMemberId(this ClaimsPrincipal user)
+        public static string GetApplicantId(this ClaimsPrincipal user)
     {
         return user.FindFirstValue(ClaimTypes.NameIdentifier)
-        ?? throw new Exception("Cannot get memberTd from token");
+        ?? throw new Exception("Cannot get applicantId from token");
     }
     }

@@ -41,7 +41,7 @@ public class AdminController(UserManager<AppUser> userManager) : BaseApiControll
     {
         if (string.IsNullOrEmpty(roles)) return BadRequest("You must select at least one role");
 
-        var selectedRoles = roles.Split(",").ToArray();
+        var selectedRoles = roles.Split(",",StringSplitOptions.RemoveEmptyEntries).Select(role=>role.Trim()).ToArray();
 
         var user = await userManager.FindByIdAsync(userId);
 
@@ -61,10 +61,10 @@ public class AdminController(UserManager<AppUser> userManager) : BaseApiControll
 
     }
 
-    [Authorize(Policy = "ModeratePhotoRole")]
-    [HttpGet("photos-to-moderate")]
-    public ActionResult GetPhotosForModeration()
+    [Authorize(Policy = "ManagePhotoRole")]
+    [HttpGet("photos-to-manage")]
+    public ActionResult GetPhotosForManaging()
     {
-        return Ok("Admins or Moderators can see this");
+        return Ok("Admins or Manager can see this");//*
     }
 }

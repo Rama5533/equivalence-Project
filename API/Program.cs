@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 using API.SinglR;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using API.Configuration;
+using Azure.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,7 +36,7 @@ builder.Services.AddCors(Options =>
 
 builder.Services.AddScoped<ITokenService, TokenService>(); //or AddTransient or AddSingleton
 // builder.Services.AddScoped<IUnitOfWork,UnitOfWorks>();
-builder.Services.AddScoped<IMemberRepository, MemberRepository>();// حاليا هاد نفس الي فوق
+builder.Services.AddScoped<IApplicantRepository, ApplicantRepository>();// حاليا هاد نفس الي فوق
 
 // builder.Services.AddScoped<LogUserActivity>();
 // builder.Services.AddSignalR();
@@ -83,7 +84,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("RequierAdminRole", policy => policy.RequireRole("ADMIN"))
-    .AddPolicy("ModeratePhotoRole", policy => policy.RequireRole("ADMIN", "MODERATOR"));
+    .AddPolicy("ManagePhotoRole", policy => policy.RequireRole("ADMIN", "MANAGER"));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -100,8 +101,8 @@ app.UseSwaggerUI();
 // Configure the HTTP request pipeline.
 app.UseMiddleware<ExceptionMiddleware>();
 
-
-app.UseHttpsRedirection();//اذا اجاها طلبhttp بتحوله لhttps
+//لما ما يوصل الhttp بنعدل هاي
+// app.UseHttpsRedirection();//اذا اجاها طلبhttp بتحوله لhttps 
 
 
 app.UseCors("AllowReactApp");
@@ -113,8 +114,26 @@ app.UseCors("AllowReactApp");
 //     .AllowCredentials()
 //     .WithOrigins("http://localhost:4200", "http://localhost:4200"));
 
+
+app.Use(async (context, next) =>
+{
+    var roles = context.User.Claims
+        .Where(c => c.Type == System.Security.Claims.ClaimTypes.Role)
+        .Select(c => c.Value)
+        .ToList();
+
+    Console.WriteLine("Roles: " + string.Join(", ", roles));
+
+    await next();
+
+});
+
+
 app.UseAuthentication();
 app.UseAuthorization();
+
+
+
 
 app.MapControllers();
 
