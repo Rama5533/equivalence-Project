@@ -7,10 +7,14 @@ using Microsoft.EntityFrameworkCore;
 namespace API.Data;
 
 
-public class AppDbContext(DbContextOptions options) : IdentityDbContext<AppUser>(options)
+public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<AppUser>(options)
 {
 
     public DbSet<Applicant> Applicants { get; set; }
+
+public DbSet<Notification> Notifications{get; set;}
+
+public DbSet<NotificationTemplate> NotificationTemplates{get; set;}
 
     public DbSet<Photo> Photos { get; set; }
 
