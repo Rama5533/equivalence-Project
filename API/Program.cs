@@ -1,163 +1,212 @@
 using System.Text;
+using API.Configuration;
 using API.Data;
+using API.Entities;
 using API.Interfaces;
+using API.Middleware;
 using API.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using API.Middleware;
-using API.Entities;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Options;
-using API.SinglR;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using API.Configuration;
-using Azure.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
+// Controllers
 builder.Services.AddControllers();
 
-
+// Database
 builder.Services.AddDbContext<AppDbContext>(opt =>
 {
-    opt.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+    opt.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection")
+    );
 });
-builder.Services.AddCors(Options =>
+
+// CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp", policy =>
     {
-        Options.AddPolicy("AllowReactApp", policy =>
-        {
-            policy.WithOrigins("http://localhost:3000", "http://localhost:5173")
+        policy
+            .WithOrigins(
+                "http://localhost:3000",
+                "http://localhost:5173"
+            )
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
-        });
     });
-
-builder.Services.AddScoped<ITokenService, TokenService>(); //or AddTransient or AddSingleton
-// builder.Services.AddScoped<IUnitOfWork,UnitOfWorks>();
-builder.Services.AddScoped<IApplicantRepository, ApplicantRepository>();// حاليا هاد نفس الي فوق
-
-// builder.Services.AddScoped<LogUserActivity>();
-// builder.Services.AddSignalR();
-
-builder.Services.AddIdentityCore<AppUser>(opt =>
-{
-    opt.Password.RequireNonAlphanumeric = false;
-    opt.User.RequireUniqueEmail = true;
-})
-.AddRoles<IdentityRole>()
-.AddEntityFrameworkStores<AppDbContext>();
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-.AddJwtBearer(Options =>
-{
-    var tokenKey = builder.Configuration["TokenKey"]
-        ?? throw new Exception("Token key not found -Program.cs");
-    Options.TokenValidationParameters = new TokenValidationParameters
-    {
-
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenKey)),
-        ValidateIssuer = false,
-        ValidateAudience = false
-    };
-
-    // Options.Events = new JwtBearerEvents
-    // {
-    //     OnMessageReceived = context =>
-    //     {
-    //         var accessToken=context.Request.Query["access_token"];
-
-    //         var path=context.HttpContext.Request.Path;
-    //         if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
-    //         {
-    //             context.Token=accessToken;
-    //         }
-    //         return Task.CompletedTask;
-    //     }
-
-
-    // };
-
 });
 
-builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("RequierAdminRole", policy => policy.RequireRole("ADMIN"))
-    .AddPolicy("ManagePhotoRole", policy => policy.RequireRole("ADMIN", "MANAGER"));
+// Services
+builder.Services.AddScoped<ITokenService, TokenService>();
 
+builder.Services.AddScoped<
+    IApplicantRepository,
+    ApplicantRepository
+>();
+
+// Identity
+builder.Services
+    .AddIdentityCore<AppUser>(opt =>
+    {
+        opt.Password.RequireNonAlphanumeric = false;
+        opt.User.RequireUniqueEmail = true;
+    })
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<AppDbContext>();
+
+// Authentication
+builder.Services
+    .AddAuthentication(
+        JwtBearerDefaults.AuthenticationScheme
+    )
+    .AddJwtBearer(options =>
+    {
+        var tokenKey =
+            builder.Configuration["TokenKey"]
+            ?? throw new Exception(
+                "Token key not found - Program.cs"
+            );
+
+        options.TokenValidationParameters =
+            new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+
+                IssuerSigningKey =
+                    new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(tokenKey)
+                    ),
+
+                ValidateIssuer = false,
+
+                ValidateAudience = false
+            };
+    });
+
+// Authorization
+builder.Services
+    .AddAuthorizationBuilder()
+
+    .AddPolicy(
+        "RequierAdminRole",
+        policy =>
+            policy.RequireRole("ADMIN")
+    )
+
+    .AddPolicy(
+        "ManagePhotoRole",
+        policy =>
+            policy.RequireRole(
+                "ADMIN",
+                "MANAGER"
+            )
+    );
+
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Mail settings
 builder.Services.Configure<MailSettings>(
-    builder.Configuration.GetSection(nameof(MailSettings)));
+    builder.Configuration
+        .GetSection(nameof(MailSettings))
+);
 
-builder.Services.AddTransient<IMailService, MailService>();
+builder.Services.AddTransient<
+    IMailService,
+    MailService
+>();
 
 var app = builder.Build();
 
+// Swagger
 app.UseSwagger();
 app.UseSwaggerUI();
-// Configure the HTTP request pipeline.
+
+// Exception middleware
 app.UseMiddleware<ExceptionMiddleware>();
 
-//لما ما يوصل الhttp بنعدل هاي
-// app.UseHttpsRedirection();//اذا اجاها طلبhttp بتحوله لhttps 
+// HTTPS redirection disabled حاليا
+// app.UseHttpsRedirection();
 
-
+// CORS
 app.UseCors("AllowReactApp");
 
-//هاي لتشبيك الفرونت اند بالباك اند 
-// app.UseCors(x =>
-//     x.AllowAnyHeader()
-//     .AllowAnyMethod()
-//     .AllowCredentials()
-//     .WithOrigins("http://localhost:4200", "http://localhost:4200"));
+// Serve files from wwwroot
+// مثل الصور الموجودة داخل:
+// wwwroot/uploads/profiles
+app.UseStaticFiles();
 
+// Authentication لازم يكون قبل Authorization
+app.UseAuthentication();
 
+// Debug middleware:
+// يطبع roles الموجودة داخل JWT
 app.Use(async (context, next) =>
 {
-    var roles = context.User.Claims
-        .Where(c => c.Type == System.Security.Claims.ClaimTypes.Role)
-        .Select(c => c.Value)
-        .ToList();
+    var roles =
+        context.User.Claims
+            .Where(
+                c =>
+                    c.Type ==
+                    System.Security.Claims
+                        .ClaimTypes.Role
+            )
+            .Select(c => c.Value)
+            .ToList();
 
-    Console.WriteLine("Roles: " + string.Join(", ", roles));
+    Console.WriteLine(
+        "Roles: " +
+        string.Join(", ", roles)
+    );
 
     await next();
-
 });
 
-
-app.UseAuthentication();
+// Authorization
 app.UseAuthorization();
 
-
-
-
+// Controllers
 app.MapControllers();
 
+// Apply migrations + seed database
+using var scope =
+    app.Services.CreateScope();
 
-// app.MapHub<PersenceHub>("hubs/presence");
-
-using var scope = app.Services.CreateScope();
-var services = scope.ServiceProvider;
+var services =
+    scope.ServiceProvider;
 
 try
 {
-    var context = services.GetRequiredService<AppDbContext>();
-    var userManager = services.GetRequiredService<UserManager<AppUser>>();
-    await context.Database.MigrateAsync();
-    await Seed.SeedUsers(userManager);
+    var context =
+        services
+            .GetRequiredService<AppDbContext>();
 
+    var userManager =
+        services
+            .GetRequiredService<
+                UserManager<AppUser>
+            >();
+
+    await context.Database.MigrateAsync();
+
+    await Seed.SeedUsers(userManager);
 }
 catch (Exception ex)
 {
-    var logger = services.GetRequiredService<ILogger<Program>>();
-    logger.LogError(ex, "An error occured during migration");
+    var logger =
+        services
+            .GetRequiredService<
+                ILogger<Program>
+            >();
 
+    logger.LogError(
+        ex,
+        "An error occurred during migration"
+    );
 }
 
 app.Run();
