@@ -177,7 +177,7 @@ namespace API.Controllers
 
 
 
-
+//////******************
         [HttpPost("profile/photo")]
         public async Task<ActionResult> UploadProfilePhoto(
             IFormFile file

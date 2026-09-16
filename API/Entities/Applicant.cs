@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
+using API.Enums;
 
 namespace API.Entities;
 
@@ -38,6 +39,11 @@ public class Applicant
     public DateTime Created { get; set; } = DateTime.UtcNow;
 
     public DateTime LastActive { get; set; } = DateTime.UtcNow;
+
+    public List< ApplicantQualification> qualifications { get; set; }=[];
+
+     public List< EquivalencyApplication> EquivalencyApplications { get; set; }=[];
+
 
     [JsonIgnore]
     public List<Photo> Photos { get; set; } = [];

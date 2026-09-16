@@ -482,3 +482,4 @@ $RECYCLE.BIN/
 *.swp
 API/appsettings.json
 API/equiv.db*
+wwwroot*

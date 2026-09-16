@@ -1,9 +1,9 @@
 using System;
 using API.Entities;
+using API.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-
 namespace API.Data;
 
 
@@ -12,9 +12,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
 
     public DbSet<Applicant> Applicants { get; set; }
 
-public DbSet<Notification> Notifications{get; set;}
+    public DbSet<Notification> Notifications { get; set; }
 
-public DbSet<NotificationTemplate> NotificationTemplates{get; set;}
+    public DbSet<NotificationTemplate> NotificationTemplates { get; set; }
+
+    public DbSet<QualificationRequirement> QualificationRequirements { get; set; }
+
+    public DbSet<ApplicantQualification> ApplicantQualifications { get; set; }
+
+    public DbSet<EquivalencyApplication> EquivalencyApplications { get; set; }
 
     public DbSet<Photo> Photos { get; set; }
 
@@ -22,11 +28,24 @@ public DbSet<NotificationTemplate> NotificationTemplates{get; set;}
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<ApplicantQualification>()
+    .HasOne(q => q.Applicant)
+    .WithMany(a => a.qualifications)
+    .HasForeignKey(q => q.ApplicantId)
+    .OnDelete(DeleteBehavior.Cascade);
+
+    modelBuilder.Entity<EquivalencyApplication>()
+    .HasOne(a => a.Applicant)
+    .WithMany(a => a.EquivalencyApplications)
+    .HasForeignKey(a => a.ApplicantId)
+    .OnDelete(DeleteBehavior.Cascade);
+
+        //للادوار والصلاحيات الي لازم تكون عندي بالداتا بيس
         modelBuilder.Entity<IdentityRole>()
         .HasData(
 new IdentityRole
 {
-      Id = "admin-id",
+    Id = "admin-id",
     Name = "Admin",
     NormalizedName = "ADMIN",
     ConcurrencyStamp = "admin-concurrency-stamp"
@@ -103,5 +122,55 @@ new IdentityRole
     ConcurrencyStamp = "applicant-concurrency-stamp"
 }
         );
+        //للمتطلبات الشايقة تاعت الشهادات
+        modelBuilder.Entity<QualificationRequirement>()
+        .HasData(
+            new QualificationRequirement
+            {
+                Id = 1,
+                QualificationType = QualificationType.Diploma,
+                RequiredQualificationType = QualificationType.Secondary
+            },
+            new QualificationRequirement
+            {
+                Id = 2,
+                QualificationType = QualificationType.Bachelor,
+                RequiredQualificationType = QualificationType.Secondary
+            },
+            new QualificationRequirement
+            {
+                Id = 3,
+                QualificationType = QualificationType.Master,
+                RequiredQualificationType = QualificationType.Bachelor
+            },
+            new QualificationRequirement
+            {
+                Id = 4,
+                QualificationType = QualificationType.Master,
+                RequiredQualificationType = QualificationType.Secondary
+
+            },
+            new QualificationRequirement
+            {
+                Id = 5,
+                QualificationType = QualificationType.PhD,
+                RequiredQualificationType = QualificationType.Secondary
+            },
+            new QualificationRequirement
+            {
+                Id = 6,
+                QualificationType = QualificationType.PhD,
+                RequiredQualificationType = QualificationType.Bachelor
+
+            },
+            new QualificationRequirement
+            {
+                Id = 7,
+                QualificationType = QualificationType.PhD,
+                RequiredQualificationType = QualificationType.Master
+
+            }
+        );
+
     }
 }

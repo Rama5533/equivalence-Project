@@ -4,6 +4,7 @@ using API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260916105738_AddQualificationRequirements")]
+    partial class AddQualificationRequirements
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -157,28 +160,6 @@ namespace API.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Applicants");
-                });
-
-            modelBuilder.Entity("API.Entities.ApplicantQualification", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ApplicantId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<int>("qualificationType")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ApplicantId");
-
-                    b.ToTable("ApplicantQualifications");
                 });
 
             modelBuilder.Entity("API.Entities.Notification", b =>
@@ -341,38 +322,6 @@ namespace API.Migrations
                             QualificationType = 5,
                             RequiredQualificationType = 4
                         });
-                });
-
-            modelBuilder.Entity("API.Enums.EquivalencyApplication", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ApplicantId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("QualificationType")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("SubmittedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ApplicantId");
-
-                    b.ToTable("EquivalencyApplications");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -598,17 +547,6 @@ namespace API.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("API.Entities.ApplicantQualification", b =>
-                {
-                    b.HasOne("API.Entities.Applicant", "Applicant")
-                        .WithMany("qualifications")
-                        .HasForeignKey("ApplicantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Applicant");
-                });
-
             modelBuilder.Entity("API.Entities.Notification", b =>
                 {
                     b.HasOne("API.Entities.AppUser", "User")
@@ -624,17 +562,6 @@ namespace API.Migrations
                 {
                     b.HasOne("API.Entities.Applicant", "Applicant")
                         .WithMany("Photos")
-                        .HasForeignKey("ApplicantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Applicant");
-                });
-
-            modelBuilder.Entity("API.Enums.EquivalencyApplication", b =>
-                {
-                    b.HasOne("API.Entities.Applicant", "Applicant")
-                        .WithMany("EquivalencyApplications")
                         .HasForeignKey("ApplicantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -701,11 +628,7 @@ namespace API.Migrations
 
             modelBuilder.Entity("API.Entities.Applicant", b =>
                 {
-                    b.Navigation("EquivalencyApplications");
-
                     b.Navigation("Photos");
-
-                    b.Navigation("qualifications");
                 });
 #pragma warning restore 612, 618
         }
