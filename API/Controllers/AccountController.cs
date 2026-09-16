@@ -10,10 +10,17 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualBasic;
+using API.Services;
+using API.Models;
 
 namespace API.Controllers;
 
-public class AccountController(UserManager<AppUser> userManager, ITokenService tokenService) : BaseApiController
+
+public class AccountController(
+    UserManager<AppUser> userManager,
+    ITokenService tokenService,
+    IMailService mailService
+) : BaseApiController
 {
     [HttpPost("register")]// api/accounts/register
     public async Task<ActionResult<UserDto>> Register(RegisterDto registerDto)
@@ -86,6 +93,110 @@ public class AccountController(UserManager<AppUser> userManager, ITokenService t
 
         return await user.ToDto(tokenService);
     }
+
+
+
+// هذا الـ endpoint يبدأ عملية نسيان كلمة المرور
+// يستقبل إيميل المستخدم، يولّد Password Reset Token
+// وبعدها يبعث رابط إعادة تعيين كلمة المرور على الإيميل
+[HttpPost("forgot-password")]
+public async Task<ActionResult> ForgotPassword(
+    ForgotPasswordDto forgotPasswordDto
+)
+{
+    // نبحث عن المستخدم حسب الإيميل
+    var user =
+        await userManager.FindByEmailAsync(
+            forgotPasswordDto.Email
+        );
+
+    // لأسباب أمنية، ما بنحكي للمستخدم إذا الإيميل موجود أو لا
+    // حتى ما نكشف الحسابات المسجلة بالنظام
+    if (user == null)
+    {
+        return Ok(new
+        {
+            message =
+                "If the email exists, a password reset link has been sent."
+        });
+    }
+
+    // توليد توكن خاص بإعادة تعيين كلمة المرور
+    // ASP.NET Identity هو المسؤول عن إنشاء التوكن والتحقق منه لاحقًا
+    var resetToken =
+        await userManager
+            .GeneratePasswordResetTokenAsync(user);
+
+    // بناء رابط إعادة تعيين كلمة المرور
+    // الفرونت لاحقًا رح يعمل صفحة reset-password
+    // وتقرأ منها email و token من الرابط
+    var resetLink =
+        $"http://localhost:3000/reset-password" +
+        $"?email={Uri.EscapeDataString(user.Email!)}" +
+        $"&token={Uri.EscapeDataString(resetToken)}";
+
+    // تجهيز رسالة الإيميل
+    var mailData =
+        new MailData(
+            new List<string>
+            {
+                user.Email!
+            },
+            "Reset your password",
+            $"""
+            <h2>Password Reset</h2>
+
+            <p>
+                We received a request to reset your password.
+            </p>
+
+            <p>
+                Click the link below to choose a new password:
+            </p>
+
+            <p>
+                <a href="{resetLink}">
+                    Reset Password
+                </a>
+            </p>
+
+            <p>
+                If you did not request a password reset,
+                you can ignore this email.
+            </p>
+            """
+        );
+
+    // إرسال الإيميل باستخدام MailService الموجود عندنا
+    var emailSent =
+        await mailService.SendAsync(
+            mailData,
+            HttpContext.RequestAborted
+        );
+
+    // إذا صار خطأ أثناء إرسال الإيميل
+    if (!emailSent)
+    {
+        return StatusCode(
+            StatusCodes.Status500InternalServerError,
+            new
+            {
+                message =
+                    "Failed to send password reset email."
+            }
+        );
+    }
+
+    // إذا تم الإرسال بنجاح
+    // ما بنرجع resetToken بالـ response لأسباب أمنية
+    return Ok(new
+    {
+        message =
+            "If the email exists, a password reset link has been sent."
+    });
+}
+
+
 
     private async Task SetRefreshTokenCookie(AppUser user)
     {
