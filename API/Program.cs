@@ -5,6 +5,7 @@ using API.Entities;
 using API.Interfaces;
 using API.Middleware;
 using API.Services;
+using API.SinglR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -41,11 +42,13 @@ builder.Services.AddCors(options =>
 
 // Services
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 builder.Services.AddScoped<
     IApplicantRepository,
-    ApplicantRepository
->();
+    ApplicantRepository>();
+
+builder.Services.AddSignalR();
 
 // Identity
 builder.Services
@@ -85,6 +88,28 @@ builder.Services
 
                 ValidateAudience = false
             };
+
+        // Allow SignalR to receive JWT from query string
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken =
+                context.Request.Query["access_token"];
+
+                var path =
+                context.HttpContext.Request.Path;
+
+                if (
+                    !string.IsNullOrEmpty(accessToken) &&
+                    path.StartsWithSegments("/hubs")
+                )
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 
 // Authorization
@@ -172,6 +197,9 @@ app.UseAuthorization();
 
 // Controllers
 app.MapControllers();
+
+//SingleR
+app.MapHub<PersenceHub>("/hubs/presence");
 
 // Apply migrations + seed database
 using var scope =

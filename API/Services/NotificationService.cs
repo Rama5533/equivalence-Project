@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using API.Data;
 using API.Entities;
 using API.Interfaces;
+using API.SinglR;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace API.Services
@@ -12,16 +14,18 @@ namespace API.Services
     public class NotificationService:INotificationService
     {
             private readonly AppDbContext _context;
+            private readonly IHubContext<PersenceHub> _hubContext;
 
-    public NotificationService(AppDbContext context)
+    public NotificationService(AppDbContext context, IHubContext<PersenceHub> hubContext)
     {
         _context = context;
+        _hubContext=hubContext;
     }
 
     public async Task<Notification> CreateNotificationAsync(
         string userId,
-        string templateKey)
-    {
+        string templateKey
+        ){
         var template = await _context.NotificationTemplates
             .FirstOrDefaultAsync(t =>
                 t.Key == templateKey &&
@@ -29,7 +33,7 @@ namespace API.Services
 
         if (template == null)
         {
-            throw new Exception(
+            throw new KeyNotFoundException(
                 $"Notification template '{templateKey}' was not found.");
         }
 
@@ -47,6 +51,11 @@ namespace API.Services
         _context.Notifications.Add(notification);
 
         await _context.SaveChangesAsync();
+
+        //send real-time notification to the user
+        await _hubContext.Clients
+        .User(userId)
+        .SendAsync("Receive Notification",notification);
 
         return notification;
     }

@@ -16,6 +16,8 @@ public class PersenceHub : Hub
     public override async Task OnConnectedAsync()
     {
         await Clients.Others.SendAsync("UserOnline", Context.User?.FindFirstValue(ClaimTypes.Email));//the client is going to listen for to receive the notifications
+
+        await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
