@@ -44,9 +44,9 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 
-builder.Services.AddScoped<
-    IApplicantRepository,
-    ApplicantRepository>();
+builder.Services.AddScoped<IEquivalencyApplicationService, EquivalencyApplicationService>();
+
+builder.Services.AddScoped<IApplicantRepository,ApplicantRepository>();
 
 builder.Services.AddSignalR();
 

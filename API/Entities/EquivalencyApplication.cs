@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using API.Entities;
+using API.Enums;
 
-namespace API.Enums;
+namespace API.Entities;
     public class EquivalencyApplication
     {
         public int Id { get; set; }
