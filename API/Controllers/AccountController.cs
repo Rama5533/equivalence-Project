@@ -15,16 +15,37 @@ using API.Models;
 
 namespace API.Controllers;
 
-
 public class AccountController(
     UserManager<AppUser> userManager,
     ITokenService tokenService,
-    IMailService mailService
+    IMailService mailService,
+    AppDbContext context
 ) : BaseApiController
 {
     [HttpPost("register")]// api/accounts/register
     public async Task<ActionResult<UserDto>> Register(RegisterDto registerDto)
     {
+
+            var verifiedOtp =
+            await context.OtpVerifications
+                .Where(x =>
+                    x.Email == registerDto.Email &&
+                    x.Purpose == "Register" &&
+                    x.IsVerified
+                )
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync();
+
+        if (verifiedOtp == null)
+        {
+            return BadRequest(new
+            {
+                message = "Please verify your email before registration."
+            });
+        }
+
+
+
         var user = new AppUser
         {
             DisplayName = registerDto.DisplayName,
@@ -56,26 +77,373 @@ public class AccountController(
 
         await SetRefreshTokenCookie(user);
 
+
+            // بعد نجاح إنشاء الحساب، نحذف OTP الخاص بالتسجيل
+            // حتى ما يضل قابل لإعادة الاستخدام
+            context.OtpVerifications.Remove(verifiedOtp);
+
+            await context.SaveChangesAsync();
+
+
         return await user.ToDto(tokenService);
     }
 
-    [HttpPost("login")] //  api/accounts/login
+
+        
+    [HttpPost("login")] // api/accounts/login
     public async Task<ActionResult<UserDto>> Login(LoginDto loginDto)
     {
-        var user = await userManager.FindByEmailAsync(loginDto.Email);
+        // نبحث عن المستخدم حسب الإيميل
+        var user =
+            await userManager.FindByEmailAsync(
+                loginDto.Email
+            );
 
-        if (user == null) return Unauthorized("Invalid email address");
+        if (user == null)
+        {
+            return Unauthorized("Invalid email address");
+        }
 
-        var result = await userManager.CheckPasswordAsync(user, loginDto.Password);
+        // نتأكد من كلمة المرور
+        var passwordIsCorrect =
+            await userManager.CheckPasswordAsync(
+                user,
+                loginDto.Password
+            );
 
-        if (!result) return Unauthorized("Invalid password");
+        if (!passwordIsCorrect)
+        {
+            return Unauthorized("Invalid password");
+        }
 
+        // إذا المستخدم مفعّل المصادقة الثنائية
+        if (user.TwoFactorEnabled)
+        {
+            // نحذف أي OTP قديم خاص بتسجيل الدخول
+            var oldLoginOtps =
+                await context.OtpVerifications
+                    .Where(x =>
+                        x.Email == user.Email &&
+                        x.Purpose == "Login2FA"
+                    )
+                    .ToListAsync();
+
+            if (oldLoginOtps.Count > 0)
+            {
+                context.OtpVerifications.RemoveRange(oldLoginOtps);
+            }
+
+            // توليد OTP جديد
+            var otp = GenerateOtp();
+
+            // تخزين OTP بجدول OtpVerifications
+            var otpVerification = new OtpVerification
+            {
+                Email = user.Email!,
+                OtpCode = otp,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(5),
+                Purpose = "Login2FA",
+                IsVerified = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            context.OtpVerifications.Add(otpVerification);
+
+            await context.SaveChangesAsync();
+
+            // تجهيز رسالة الإيميل
+            var mailData = new MailData(
+                new List<string>
+                {
+                    user.Email!
+                },
+                "Your Login Verification Code",
+                $"""
+                <h2>Two-Factor Authentication</h2>
+
+                <p>Your login verification code is:</p>
+
+                <h1>{otp}</h1>
+
+                <p>This code will expire in 5 minutes.</p>
+                """
+            );
+
+            // إرسال OTP على الإيميل
+            var emailSent =
+                await mailService.SendAsync(
+                    mailData,
+                    HttpContext.RequestAborted
+                );
+
+            if (!emailSent)
+            {
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        message = "Failed to send login verification code."
+                    }
+                );
+            }
+
+            // مهم:
+            // هون ما بنرجع JWT ولا Refresh Token
+            // لأنه المستخدم لسا لازم يتحقق من OTP
+            return Ok(new
+            {
+                requiresTwoFactor = true,
+                email = user.Email,
+                message = "A verification code has been sent to your email."
+            });
+        }
+
+        // إذا 2FA مش مفعّل، تسجيل الدخول يكمل طبيعي
         await SetRefreshTokenCookie(user);
 
-
         return await user.ToDto(tokenService);
-
     }
+
+
+
+        // هذا الـ endpoint يتحقق من OTP الخاص بالمصادقة الثنائية وقت تسجيل الدخول
+    [HttpPost("verify-login-otp")]
+    public async Task<ActionResult<UserDto>> VerifyLoginOtp(
+        VerifyOtpDto verifyOtpDto
+    )
+    {
+        // نبحث عن المستخدم حسب الإيميل
+        var user =
+            await userManager.FindByEmailAsync(
+                verifyOtpDto.Email
+            );
+
+        if (user == null)
+        {
+            return Unauthorized("Invalid verification request.");
+        }
+
+        // نجيب آخر OTP خاص بتسجيل الدخول لهذا الإيميل
+        var otpRecord =
+            await context.OtpVerifications
+                .Where(x =>
+                    x.Email == verifyOtpDto.Email &&
+                    x.Purpose == "Login2FA"
+                )
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync();
+
+        // إذا ما في OTP محفوظ
+        if (otpRecord == null)
+        {
+            return BadRequest(new
+            {
+                message = "No login OTP request was found."
+            });
+        }
+
+        // إذا انتهت صلاحية الكود
+        if (otpRecord.ExpiresAt < DateTime.UtcNow)
+        {
+            return BadRequest(new
+            {
+                message = "OTP has expired."
+            });
+        }
+
+        // إذا الكود المدخل غلط
+        if (otpRecord.OtpCode != verifyOtpDto.Otp)
+        {
+            return BadRequest(new
+            {
+                message = "Invalid OTP."
+            });
+        }
+
+        // بعد نجاح التحقق نحذف الـ OTP
+        // لأنه لازم يُستخدم مرة واحدة فقط
+        context.OtpVerifications.Remove(otpRecord);
+
+        await context.SaveChangesAsync();
+
+        // هسا فقط نعتبر تسجيل الدخول ناجح
+        // وننشئ Refresh Token
+        await SetRefreshTokenCookie(user);
+
+        // ونرجع بيانات المستخدم مع JWT
+        return await user.ToDto(tokenService);
+    }
+
+
+
+
+    // هذه الدالة تولّد OTP مكوّن من 6 أرقام
+    private static string GenerateOtp()
+    {
+        // يولّد رقم عشوائي آمن بين 100000 و 999999
+        var otp = RandomNumberGenerator.GetInt32(100000, 1000000);
+
+        return otp.ToString();
+    }
+
+
+
+
+
+    // هذا الـ endpoint يولّد OTP ويرسله على الإيميل
+    // ويستخدم جدول OtpVerifications بدل AppUser
+    [HttpPost("send-otp")]
+    public async Task<ActionResult> SendOtp(SendOtpDto sendOtpDto)
+    {
+        // نتأكد إن الإيميل مش فاضي
+        if (string.IsNullOrWhiteSpace(sendOtpDto.Email))
+        {
+            return BadRequest(new
+            {
+                message = "Email is required."
+            });
+        }
+
+        // توليد OTP مكوّن من 6 أرقام
+        var otp = GenerateOtp();
+
+        // نحذف أي OTP قديم لنفس الإيميل
+        // حتى ما يصير عنده أكثر من كود فعال بنفس الوقت
+        var oldOtps = await context.OtpVerifications
+            .Where(x => x.Email == sendOtpDto.Email)
+            .ToListAsync();
+
+        if (oldOtps.Count > 0)
+        {
+            context.OtpVerifications.RemoveRange(oldOtps);
+        }
+
+        // إنشاء سجل OTP جديد
+        var otpVerification = new OtpVerification
+        {
+            Email = sendOtpDto.Email,
+            OtpCode = otp,
+
+            // صلاحية الكود 5 دقائق
+            ExpiresAt = DateTime.UtcNow.AddMinutes(5),
+
+            // حاليًا نعتبره للتسجيل
+            Purpose = "Register",
+
+            IsVerified = false,
+
+            CreatedAt = DateTime.UtcNow
+        };
+
+        // تخزين OTP في قاعدة البيانات
+        context.OtpVerifications.Add(otpVerification);
+
+        await context.SaveChangesAsync();
+
+        // تجهيز الإيميل
+        var mailData = new MailData(
+            new List<string>
+            {
+                sendOtpDto.Email
+            },
+            "Your OTP Code",
+            $"""
+            <h2>Email Verification</h2>
+
+            <p>Your OTP code is:</p>
+
+            <h1>{otp}</h1>
+
+            <p>This code will expire in 5 minutes.</p>
+            """
+        );
+
+        // إرسال OTP على الإيميل
+        var emailSent = await mailService.SendAsync(
+            mailData,
+            HttpContext.RequestAborted
+        );
+
+        // إذا فشل إرسال الإيميل
+        if (!emailSent)
+        {
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                new
+                {
+                    message = "Failed to send OTP."
+                }
+            );
+        }
+
+        return Ok(new
+        {
+            message = "OTP has been sent successfully."
+        });
+    }
+
+
+
+
+
+
+// هذا الـ endpoint يتحقق من OTP الخاص بالإيميل
+[HttpPost("verify-otp")]
+public async Task<ActionResult> VerifyOtp(
+    VerifyOtpDto verifyOtpDto
+)
+{
+    // نبحث عن آخر OTP لنفس الإيميل
+    // والمستخدم للتسجيل Purpose = Register
+    var otpRecord =
+        await context.OtpVerifications
+            .Where(x =>
+                x.Email == verifyOtpDto.Email &&
+                x.Purpose == "Register"
+            )
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync();
+
+    // إذا ما في OTP محفوظ
+    if (otpRecord == null)
+    {
+        return BadRequest(new
+        {
+            message = "No OTP request was found."
+        });
+    }
+
+    // نتأكد إن الكود لسا ما انتهت صلاحيته
+    if (otpRecord.ExpiresAt < DateTime.UtcNow)
+    {
+        return BadRequest(new
+        {
+            message = "OTP has expired."
+        });
+    }
+
+    // نقارن الكود المدخل مع الكود المخزن
+    if (otpRecord.OtpCode != verifyOtpDto.Otp)
+    {
+        return BadRequest(new
+        {
+            message = "Invalid OTP."
+        });
+    }
+
+    // إذا الكود صحيح، نعتبر الإيميل متحقق منه
+    otpRecord.IsVerified = true;
+
+    await context.SaveChangesAsync();
+
+    return Ok(new
+    {
+        message = "Email verified successfully."
+    });
+}
+
+
+
 
     [HttpPost("refresh-to-token")]
     public async Task<ActionResult<UserDto>> RefreshToken()
@@ -195,6 +563,71 @@ public async Task<ActionResult> ForgotPassword(
             "If the email exists, a password reset link has been sent."
     });
 }
+
+
+
+
+    // هذا الـ endpoint ينفذ إعادة تعيين كلمة المرور فعليًا
+    // يستقبل الإيميل + التوكن + كلمة المرور الجديدة
+    [HttpPost("reset-password")]
+    public async Task<ActionResult> ResetPassword(
+        ResetPasswordDto resetPasswordDto
+    )
+    {
+        // نبحث عن المستخدم حسب الإيميل
+        var user =
+            await userManager.FindByEmailAsync(
+                resetPasswordDto.Email
+            );
+
+        // إذا المستخدم غير موجود
+        if (user == null)
+        {
+            return BadRequest(new
+            {
+                message = "Invalid password reset request."
+            });
+        }
+
+        // ASP.NET Identity يتحقق من التوكن
+        // وإذا كان صحيح يغيّر كلمة المرور
+        var result =
+            await userManager.ResetPasswordAsync(
+                user,
+                resetPasswordDto.Token,
+                resetPasswordDto.NewPassword
+            );
+
+        // إذا فشلت العملية، نرجع أخطاء Identity
+        if (!result.Succeeded)
+        {
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(
+                    "identity",
+                    error.Description
+                );
+            }
+
+            return ValidationProblem(ModelState);
+        }
+
+        // نمسح refresh token القديم
+        // حتى الجلسات القديمة ما تضل فعالة بعد تغيير الباسورد
+        user.RefreshToken = null;
+        user.RefreshTokenExpirey = null;
+
+        await userManager.UpdateAsync(user);
+
+        return Ok(new
+        {
+            message = "Password has been reset successfully."
+        });
+    }
+
+
+
+
 
 
 

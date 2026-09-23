@@ -24,4 +24,7 @@ public class AppUser : IdentityUser
       }*/
     //Nav property
     public Applicant Applicant { get; set; } = null!;
+
+
+
 }
