@@ -22,6 +22,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
 
     public DbSet<EquivalencyApplication> EquivalencyApplications { get; set; }
 
+    public DbSet<OtpVerification> OtpVerifications { get; set; }
+
     public DbSet<Photo> Photos { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
