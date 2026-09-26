@@ -18,9 +18,6 @@ public class AppUser : IdentityUser
     public DateTime? RefreshTokenExpirey { get; set; }
 
 
-// public string? OtpCode { get; set; }
-
-// public DateTime? OtpExpiry { get; set; }
 
     /*  internal ActionResult<UserDto> ToDto()
       {
