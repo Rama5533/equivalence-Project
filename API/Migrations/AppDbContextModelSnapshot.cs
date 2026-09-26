@@ -162,7 +162,7 @@ namespace API.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Applicants");
+                    b.ToTable("Applicants", (string)null);
                 });
 
             modelBuilder.Entity("API.Entities.ApplicantQualification", b =>
@@ -184,7 +184,7 @@ namespace API.Migrations
 
                     b.HasIndex("ApplicantId");
 
-                    b.ToTable("ApplicantQualifications");
+                    b.ToTable("ApplicantQualifications", (string)null);
                 });
 
             modelBuilder.Entity("API.Entities.Notification", b =>
@@ -225,7 +225,7 @@ namespace API.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Notifications");
+                    b.ToTable("Notifications", (string)null);
                 });
 
             modelBuilder.Entity("API.Entities.NotificationTemplate", b =>
@@ -257,7 +257,7 @@ namespace API.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("NotificationTemplates");
+                    b.ToTable("NotificationTemplates", (string)null);
                 });
 
             modelBuilder.Entity("API.Entities.OtpVerification", b =>
@@ -291,7 +291,7 @@ namespace API.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("OtpVerifications");
+                    b.ToTable("OtpVerifications", (string)null);
                 });
 
             modelBuilder.Entity("API.Entities.Photo", b =>
@@ -317,7 +317,7 @@ namespace API.Migrations
 
                     b.HasIndex("ApplicantId");
 
-                    b.ToTable("Photos");
+                    b.ToTable("Photos", (string)null);
                 });
 
             modelBuilder.Entity("API.Entities.QualificationRequirement", b =>
@@ -336,7 +336,7 @@ namespace API.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("QualificationRequirements");
+                    b.ToTable("QualificationRequirements", (string)null);
 
                     b.HasData(
                         new
@@ -412,7 +412,7 @@ namespace API.Migrations
 
                     b.HasIndex("ApplicantId");
 
-                    b.ToTable("EquivalencyApplications");
+                    b.ToTable("EquivalencyApplications", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
