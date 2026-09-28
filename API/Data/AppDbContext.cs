@@ -4,11 +4,15 @@ using API.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+
 namespace API.Data;
 
-
-public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<AppUser>(options)
+public class AppDbContext(DbContextOptions<AppDbContext> options)
+    : IdentityDbContext<AppUser>(options)
 {
+    // =========================================================
+    // Main Entities
+    // =========================================================
 
     public DbSet<Applicant> Applicants { get; set; }
 
@@ -26,153 +30,303 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
 
     public DbSet<Photo> Photos { get; set; }
 
+
+    // =========================================================
+    // Equivalency Institution Data
+    // =========================================================
+
+    public DbSet<EquivalencyCountry> EquivalencyCountries { get; set; }
+
+    public DbSet<EquivalencyInstitution> EquivalencyInstitutions { get; set; }
+
+    public DbSet<EquivalencyMajor> EquivalencyMajors { get; set; }
+
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<ApplicantQualification>()
-    .HasOne(q => q.Applicant)
-    .WithMany(a => a.qualifications)
-    .HasForeignKey(q => q.ApplicantId)
-    .OnDelete(DeleteBehavior.Cascade);
 
-    modelBuilder.Entity<EquivalencyApplication>()
-    .HasOne(a => a.Applicant)
-    .WithMany(a => a.EquivalencyApplications)
-    .HasForeignKey(a => a.ApplicantId)
-    .OnDelete(DeleteBehavior.Cascade);
+        // =========================================================
+        // Applicant Qualification
+        // =========================================================
 
-        //للادوار والصلاحيات الي لازم تكون عندي بالداتا بيس
+        modelBuilder.Entity<ApplicantQualification>(entity =>
+        {
+            entity.HasOne(q => q.Applicant)
+                .WithMany(a => a.qualifications)
+                .HasForeignKey(q => q.ApplicantId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+
+        // =========================================================
+        // Equivalency Application
+        // =========================================================
+
+        modelBuilder.Entity<EquivalencyApplication>(entity =>
+        {
+            entity.HasKey(a => a.Id);
+
+
+            // Applicant
+            entity.HasOne(a => a.Applicant)
+                .WithMany(a => a.EquivalencyApplications)
+                .HasForeignKey(a => a.ApplicantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+
+            // Country
+            entity.HasOne(a => a.Country)
+                .WithMany()
+                .HasForeignKey(a => a.CountryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
+            // Institution
+            entity.HasOne(a => a.Institution)
+                .WithMany()
+                .HasForeignKey(a => a.InstitutionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
+            // Major
+            entity.HasOne(a => a.Major)
+                .WithMany()
+                .HasForeignKey(a => a.MajorId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+
+        // =========================================================
+        // Equivalency Country
+        // =========================================================
+
+        modelBuilder.Entity<EquivalencyCountry>(entity =>
+        {
+            entity.ToTable("EquivalencyCountries");
+
+            entity.HasKey(c => c.Id);
+
+            entity.Property(c => c.Id)
+                .ValueGeneratedOnAdd();
+
+            entity.Property(c => c.Name)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            entity.Property(c => c.NameEn)
+                .HasMaxLength(200)
+                .IsRequired();
+        });
+
+
+        // =========================================================
+        // Equivalency Institution
+        // =========================================================
+
+        modelBuilder.Entity<EquivalencyInstitution>(entity =>
+        {
+            entity.ToTable("EquivalencyInstitutions");
+
+            entity.HasKey(i => i.Id);
+
+            entity.Property(i => i.Id)
+                .ValueGeneratedOnAdd();
+
+            entity.Property(i => i.Name)
+                .HasMaxLength(250)
+                .IsRequired();
+
+            entity.Property(i => i.NameEn)
+                .HasMaxLength(250);
+
+            entity.HasOne(i => i.Country)
+                .WithMany(c => c.Institutions)
+                .HasForeignKey(i => i.CountryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+
+        // =========================================================
+        // Equivalency Major
+        // =========================================================
+
+        modelBuilder.Entity<EquivalencyMajor>(entity =>
+        {
+            entity.ToTable("EquivalencyMajors");
+
+            entity.HasKey(m => m.Id);
+
+            entity.Property(m => m.Id)
+                .ValueGeneratedOnAdd();
+
+            entity.Property(m => m.Name)
+                .HasMaxLength(250)
+                .IsRequired();
+
+            entity.Property(m => m.NameEn)
+                .HasMaxLength(250);
+
+            entity.HasOne(m => m.Institution)
+                .WithMany(i => i.Majors)
+                .HasForeignKey(m => m.InstitutionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+
+        // =========================================================
+        // Roles
+        // =========================================================
+
         modelBuilder.Entity<IdentityRole>()
-        .HasData(
-new IdentityRole
-{
-    Id = "admin-id",
-    Name = "Admin",
-    NormalizedName = "ADMIN",
-    ConcurrencyStamp = "admin-concurrency-stamp"
-},
+            .HasData(
 
-new IdentityRole
-{
-    Id = "manager-id",
-    Name = "Manager",
-    NormalizedName = "MANAGER",
-    ConcurrencyStamp = "manager-concurrency-stamp"
-},
-new IdentityRole
-{
-    Id = "equivalency-id",
-    Name = "Equivalency",
-    NormalizedName = "EQUIVALENCY",
-    ConcurrencyStamp = "equivalency-concurrency-stamp"
-},
-new IdentityRole
-{
-    Id = "receiving-id",
-    Name = "Receiving",
-    NormalizedName = "RECEIVING",
-    ConcurrencyStamp = "receiving-concurrency-stamp"
-},
-new IdentityRole
-{
-    Id = "inquiry-id",
-    Name = "Inquiry",
-    NormalizedName = "INQUIRY",
-    ConcurrencyStamp = "inquiry-concurrency-stamp"
-},
-new IdentityRole
-{
-    Id = "archive-id",
-    Name = "Archive",
-    NormalizedName = "ARCHIVE",
-    ConcurrencyStamp = "archive-concurrency-stamp"
-},
-new IdentityRole
-{
-    Id = "office-id",
-    Name = "Office",
-    NormalizedName = "OFFICE",
-    ConcurrencyStamp = "office-concurrency-stamp"
-},
-new IdentityRole
-{
-    Id = "printing-id",
-    Name = "Printing",
-    NormalizedName = "PRINTING",
-    ConcurrencyStamp = "printing-concurrency-stamp"
-},
-new IdentityRole
-{
-    Id = "committee_coordinator-id",
-    Name = "Committee_Coordinator",
-    NormalizedName = "COMMITTEE_COORDINATOR",
-    ConcurrencyStamp = "committee_coordinator-concurrency-stamp"
-},
-new IdentityRole
-{
-    Id = "committee_member-id",
-    Name = "Committee_Member",
-    NormalizedName = "COMMITTEE_MEMBER",
-    ConcurrencyStamp = "committee_member-concurrency-stamp"
-},
-new IdentityRole
-{
-    Id = "applicant-id",
-    Name = "Applicant",
-    NormalizedName = "APPLICANT",
-    ConcurrencyStamp = "applicant-concurrency-stamp"
-}
-        );
-        //للمتطلبات الشايقة تاعت الشهادات
+                new IdentityRole
+                {
+                    Id = "admin-id",
+                    Name = "Admin",
+                    NormalizedName = "ADMIN",
+                    ConcurrencyStamp = "admin-concurrency-stamp"
+                },
+
+                new IdentityRole
+                {
+                    Id = "manager-id",
+                    Name = "Manager",
+                    NormalizedName = "MANAGER",
+                    ConcurrencyStamp = "manager-concurrency-stamp"
+                },
+
+                new IdentityRole
+                {
+                    Id = "equivalency-id",
+                    Name = "Equivalency",
+                    NormalizedName = "EQUIVALENCY",
+                    ConcurrencyStamp = "equivalency-concurrency-stamp"
+                },
+
+                new IdentityRole
+                {
+                    Id = "receiving-id",
+                    Name = "Receiving",
+                    NormalizedName = "RECEIVING",
+                    ConcurrencyStamp = "receiving-concurrency-stamp"
+                },
+
+                new IdentityRole
+                {
+                    Id = "inquiry-id",
+                    Name = "Inquiry",
+                    NormalizedName = "INQUIRY",
+                    ConcurrencyStamp = "inquiry-concurrency-stamp"
+                },
+
+                new IdentityRole
+                {
+                    Id = "archive-id",
+                    Name = "Archive",
+                    NormalizedName = "ARCHIVE",
+                    ConcurrencyStamp = "archive-concurrency-stamp"
+                },
+
+                new IdentityRole
+                {
+                    Id = "office-id",
+                    Name = "Office",
+                    NormalizedName = "OFFICE",
+                    ConcurrencyStamp = "office-concurrency-stamp"
+                },
+
+                new IdentityRole
+                {
+                    Id = "printing-id",
+                    Name = "Printing",
+                    NormalizedName = "PRINTING",
+                    ConcurrencyStamp = "printing-concurrency-stamp"
+                },
+
+                new IdentityRole
+                {
+                    Id = "committee_coordinator-id",
+                    Name = "Committee_Coordinator",
+                    NormalizedName = "COMMITTEE_COORDINATOR",
+                    ConcurrencyStamp = "committee_coordinator-concurrency-stamp"
+                },
+
+                new IdentityRole
+                {
+                    Id = "committee_member-id",
+                    Name = "Committee_Member",
+                    NormalizedName = "COMMITTEE_MEMBER",
+                    ConcurrencyStamp = "committee_member-concurrency-stamp"
+                },
+
+                new IdentityRole
+                {
+                    Id = "applicant-id",
+                    Name = "Applicant",
+                    NormalizedName = "APPLICANT",
+                    ConcurrencyStamp = "applicant-concurrency-stamp"
+                }
+            );
+
+
+        // =========================================================
+        // Qualification Requirements
+        // =========================================================
+
         modelBuilder.Entity<QualificationRequirement>()
-        .HasData(
-            new QualificationRequirement
-            {
-                Id = 1,
-                QualificationType = QualificationType.Diploma,
-                RequiredQualificationType = QualificationType.Secondary
-            },
-            new QualificationRequirement
-            {
-                Id = 2,
-                QualificationType = QualificationType.Bachelor,
-                RequiredQualificationType = QualificationType.Secondary
-            },
-            new QualificationRequirement
-            {
-                Id = 3,
-                QualificationType = QualificationType.Master,
-                RequiredQualificationType = QualificationType.Bachelor
-            },
-            new QualificationRequirement
-            {
-                Id = 4,
-                QualificationType = QualificationType.Master,
-                RequiredQualificationType = QualificationType.Secondary
+            .HasData(
 
-            },
-            new QualificationRequirement
-            {
-                Id = 5,
-                QualificationType = QualificationType.PhD,
-                RequiredQualificationType = QualificationType.Secondary
-            },
-            new QualificationRequirement
-            {
-                Id = 6,
-                QualificationType = QualificationType.PhD,
-                RequiredQualificationType = QualificationType.Bachelor
+                new QualificationRequirement
+                {
+                    Id = 1,
+                    QualificationType = QualificationType.Diploma,
+                    RequiredQualificationType = QualificationType.Secondary
+                },
 
-            },
-            new QualificationRequirement
-            {
-                Id = 7,
-                QualificationType = QualificationType.PhD,
-                RequiredQualificationType = QualificationType.Master
+                new QualificationRequirement
+                {
+                    Id = 2,
+                    QualificationType = QualificationType.Bachelor,
+                    RequiredQualificationType = QualificationType.Secondary
+                },
 
-            }
-        );
+                new QualificationRequirement
+                {
+                    Id = 3,
+                    QualificationType = QualificationType.Master,
+                    RequiredQualificationType = QualificationType.Bachelor
+                },
 
+                new QualificationRequirement
+                {
+                    Id = 4,
+                    QualificationType = QualificationType.Master,
+                    RequiredQualificationType = QualificationType.Secondary
+                },
+
+                new QualificationRequirement
+                {
+                    Id = 5,
+                    QualificationType = QualificationType.PhD,
+                    RequiredQualificationType = QualificationType.Secondary
+                },
+
+                new QualificationRequirement
+                {
+                    Id = 6,
+                    QualificationType = QualificationType.PhD,
+                    RequiredQualificationType = QualificationType.Bachelor
+                },
+
+                new QualificationRequirement
+                {
+                    Id = 7,
+                    QualificationType = QualificationType.PhD,
+                    RequiredQualificationType = QualificationType.Master
+                }
+            );
     }
 }

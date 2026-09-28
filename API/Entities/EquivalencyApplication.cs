@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using API.Enums;
 
 namespace API.Entities;
@@ -6,21 +10,34 @@ public class EquivalencyApplication
 {
     public int Id { get; set; }
 
-    // صاحب الطلب
+    // Applicant who submitted the application
     public string ApplicantId { get; set; } = string.Empty;
+    public Applicant Applicant { get; set; } = null!;
 
-    // نوع المؤهل
+    // Qualification requested
     public QualificationType QualificationType { get; set; }
 
-    // حالة الطلب
+    // Country
+    public short? CountryId { get; set; }
+    public EquivalencyCountry? Country { get; set; }
+
+    // Institution / University
+    public int? InstitutionId { get; set; }
+    public EquivalencyInstitution? Institution { get; set; }
+
+    // Major / Specialization
+    public int? MajorId { get; set; }
+    public EquivalencyMajor? Major { get; set; }
+
+    // Certificate information
+    public int? GraduationYear { get; set; }
+
+    // Application information
     public string Status { get; set; } = "Draft";
 
-    // تاريخ إنشاء الطلب
+    public string? AdditionalNotes { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // تاريخ تقديم الطلب
     public DateTime? SubmittedAt { get; set; }
-
-    // صاحب الطلب
-    public Applicant Applicant { get; set; } = null!;
 }

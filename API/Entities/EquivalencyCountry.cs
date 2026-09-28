@@ -5,11 +5,14 @@ using System.Threading.Tasks;
 
 namespace API.Entities;
 
-public class InstitutionCountry
+public class EquivalencyCountry
 {
-    public short ID { get; set; }
+    public short Id { get; set; }
 
     public string Name { get; set; } = string.Empty;
 
     public string NameEn { get; set; } = string.Empty;
+
+    public ICollection<EquivalencyInstitution> Institutions { get; set; }
+        = new List<EquivalencyInstitution>();
 }

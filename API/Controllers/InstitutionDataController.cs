@@ -13,21 +13,26 @@ namespace API.Controllers;
 [Route("api/[controller]")]
 public class InstitutionDataController : ControllerBase
 {
-    private readonly InstitutionDbContext _context;
+    private readonly AppDbContext _context;
 
-    public InstitutionDataController(InstitutionDbContext context)
+    public InstitutionDataController(AppDbContext context)
     {
         _context = context;
     }
 
+
+    // =========================================================
+    // GET: api/InstitutionData/countries
+    // =========================================================
+
     [HttpGet("countries")]
     public async Task<IActionResult> GetCountries()
     {
-        var countries = await _context.Countries
+        var countries = await _context.EquivalencyCountries
             .AsNoTracking()
             .Select(c => new
             {
-                id = c.ID,
+                id = c.Id,
                 name = c.Name,
                 nameEn = c.NameEn
             })
@@ -36,40 +41,53 @@ public class InstitutionDataController : ControllerBase
         return Ok(countries);
     }
 
+
+    // =========================================================
+    // GET: api/InstitutionData/institutions?countryId=1
+    // =========================================================
+
     [HttpGet("institutions")]
     public async Task<IActionResult> GetInstitutions(
         [FromQuery] short countryId)
     {
-        var institutions = await _context.Institutions
+        var institutions = await _context.EquivalencyInstitutions
             .AsNoTracking()
-            .Where(i => i.CountryID == countryId)
+            .Where(i => i.CountryId == countryId)
             .Select(i => new
             {
-                id = i.InstituteID,
-                name = i.InstituteName,
-                nameEn = i.InstituteNameEn,
-                countryId = i.CountryID,
+                id = i.Id,
+                name = i.Name,
+                nameEn = i.NameEn,
+                countryId = i.CountryId,
                 isActive = i.IsActive
             })
             .ToListAsync();
 
         return Ok(institutions);
     }
-        [HttpGet("faculties")]
-    public async Task<IActionResult> GetFaculties(
-        [FromQuery] short institutionId)
+
+
+    // =========================================================
+    // GET: api/InstitutionData/majors?institutionId=1
+    // =========================================================
+
+    [HttpGet("majors")]
+    public async Task<IActionResult> GetMajors(
+        [FromQuery] int institutionId)
     {
-        var faculties = await _context.Faculties
+        var majors = await _context.EquivalencyMajors
             .AsNoTracking()
-            .Where(f => f.InstituteID == institutionId)
-            .Select(f => new
+            .Where(m => m.InstitutionId == institutionId)
+            .Select(m => new
             {
-                id = f.FacultyID,
-                name = f.FacultyName,
-                nameEn = f.FacultyNameEn
+                id = m.Id,
+                name = m.Name,
+                nameEn = m.NameEn,
+                institutionId = m.InstitutionId,
+                isActive = m.IsActive
             })
             .ToListAsync();
 
-        return Ok(faculties);
+        return Ok(majors);
     }
 }

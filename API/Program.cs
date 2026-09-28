@@ -24,9 +24,9 @@ builder.Services.AddDbContext<AppDbContext>(opt =>
     );
 });
 
-builder.Services.AddDbContext<InstitutionDbContext>(opt =>
-    opt.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection")));
+// builder.Services.AddDbContext<InstitutionDbContext>(opt =>
+//     opt.UseSqlServer(
+//         builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // CORS
 builder.Services.AddCors(options =>
