@@ -18,27 +18,45 @@ public class AdminController(
     AppDbContext context
 ) : BaseApiController
 {
+    
     // =========================================================
     // Users & Roles
     // =========================================================
 
+    // جلب جميع المستخدمين مع أدوارهم
     [Authorize(Policy = "RequierAdminRole")]
     [HttpGet("users-with-roles")]
-    public async Task<ActionResult> GetUserWithRoles()
+    public async Task<ActionResult> GetUsersWithRoles()
     {
-        var users = await userManager.Users.ToListAsync();
+        var users = await userManager.Users
+            .OrderBy(x => x.DisplayName)
+            .ToListAsync();
 
         var userList = new List<object>();
 
         foreach (var user in users)
         {
-            var roles = await userManager.GetRolesAsync(user);
+            var roles =
+                await userManager.GetRolesAsync(user);
 
             userList.Add(new
             {
-                user.Id,
-                user.Email,
-                Roles = roles.ToList()
+                id = user.Id,
+
+                displayName =
+                    user.DisplayName,
+
+                email =
+                    user.Email,
+
+                // شاشة الفرونت تتعامل حاليًا مع دور واحد رئيسي
+                role =
+                    roles.FirstOrDefault()
+                    ?? "APPLICANT",
+
+                // نخلي القائمة كاملة موجودة إذا احتجناها لاحقًا
+                roles =
+                    roles.ToList()
             });
         }
 
@@ -46,6 +64,7 @@ public class AdminController(
     }
 
 
+    // تغيير دور مستخدم
     [Authorize(Policy = "RequierAdminRole")]
     [HttpPost("edit-roles/{userId}")]
     public async Task<ActionResult<List<string>>> EditRoles(
@@ -53,62 +72,149 @@ public class AdminController(
         [FromQuery] string roles
     )
     {
-        if (string.IsNullOrEmpty(roles))
+        if (string.IsNullOrWhiteSpace(roles))
         {
-            return BadRequest(
-                "You must select at least one role"
-            );
+            return BadRequest(new
+            {
+                message =
+                    "You must select at least one role."
+            });
         }
 
-        var selectedRoles = roles
-            .Split(
-                ",",
-                StringSplitOptions.RemoveEmptyEntries
-            )
-            .Select(role => role.Trim())
-            .ToArray();
+
+        var selectedRoles =
+            roles
+                .Split(
+                    ",",
+                    StringSplitOptions.RemoveEmptyEntries
+                )
+                .Select(role =>
+                    role.Trim().ToUpperInvariant()
+                )
+                .Distinct()
+                .ToArray();
+
 
         var user =
-            await userManager.FindByIdAsync(userId);
+            await userManager.FindByIdAsync(
+                userId
+            );
+
 
         if (user == null)
         {
-            return BadRequest(
-                "Could not retrieve user"
-            );
+            return NotFound(new
+            {
+                message =
+                    "User was not found."
+            });
         }
 
-        var userRoles =
-            await userManager.GetRolesAsync(user);
 
-        var result =
+        // الأدوار المعتمدة في النظام
+        var allowedRoles = new[]
+        {
+            "ADMIN",
+            "MANAGER",
+            "EQUIVALENCY",
+            "RECEIVING",
+            "INQUIRY",
+            "ARCHIVE",
+            "COMMITTEE_COORDINATOR",
+            "COMMITTEE_MEMBER",
+            "OFFICE",
+            "PRINTING",
+            "APPLICANT"
+        };
+
+
+        var invalidRoles =
+            selectedRoles
+                .Except(
+                    allowedRoles,
+                    StringComparer.OrdinalIgnoreCase
+                )
+                .ToArray();
+
+
+        if (invalidRoles.Length > 0)
+        {
+            return BadRequest(new
+            {
+                message =
+                    "One or more selected roles are invalid.",
+
+                invalidRoles
+            });
+        }
+
+
+        var currentRoles =
+            await userManager.GetRolesAsync(
+                user
+            );
+
+
+        // إضافة الدور الجديد
+        var addResult =
             await userManager.AddToRolesAsync(
                 user,
-                selectedRoles.Except(userRoles)
+                selectedRoles.Except(
+                    currentRoles,
+                    StringComparer.OrdinalIgnoreCase
+                )
             );
 
-        if (!result.Succeeded)
+
+        if (!addResult.Succeeded)
         {
-            return BadRequest(
-                "Failed to add to roles"
-            );
+            return BadRequest(new
+            {
+                message =
+                    "Failed to add the selected role.",
+
+                errors =
+                    addResult.Errors.Select(
+                        x => x.Description
+                    )
+            });
         }
 
-        result =
+
+        // إزالة الأدوار القديمة
+        var removeResult =
             await userManager.RemoveFromRolesAsync(
                 user,
-                userRoles.Except(selectedRoles)
+                currentRoles.Except(
+                    selectedRoles,
+                    StringComparer.OrdinalIgnoreCase
+                )
             );
 
-        if (!result.Succeeded)
+
+        if (!removeResult.Succeeded)
         {
-            return BadRequest(
-                "Failed to remove from roles"
-            );
+            return BadRequest(new
+            {
+                message =
+                    "Failed to remove the old role.",
+
+                errors =
+                    removeResult.Errors.Select(
+                        x => x.Description
+                    )
+            });
         }
 
+
+        var updatedRoles =
+            await userManager.GetRolesAsync(
+                user
+            );
+
+
         return Ok(
-            await userManager.GetRolesAsync(user)
+            updatedRoles.ToList()
         );
     }
 
@@ -751,4 +857,69 @@ public class AdminController(
 
         return Ok(result);
     }
+
+
+        // =========================================================
+    // Printing Applications
+    // =========================================================
+
+    [Authorize(Policy = "RequierAdminRole")]
+    [HttpGet("printing")]
+    public async Task<ActionResult> GetPrintingApplications()
+    {
+        var applications = await context
+            .Set<EquivalencyApplication>()
+            .Include(x => x.Applicant)
+            .Where(x =>
+                x.Status == "Completed"
+            )
+            .OrderByDescending(x =>
+                x.SubmittedAt ?? x.CreatedAt
+            )
+            .ToListAsync();
+
+
+        var rows = applications
+            .Select(application => new
+            {
+                id = application.Id,
+
+                requestNumber =
+                    $"EQ-{application.CreatedAt.Year}-{application.Id:D5}",
+
+                applicantName =
+                    application.Applicant.DisplayName,
+
+                qualificationType =
+                    application.QualificationType.ToString(),
+
+                status =
+                    application.Status,
+
+                date =
+                    application.SubmittedAt ??
+                    application.CreatedAt
+            })
+            .ToList();
+
+
+        return Ok(new
+        {
+            total = rows.Count,
+
+            drafts = 0,
+
+            awaitingApplicant = 0,
+
+            approved = rows.Count,
+
+            final = 0,
+
+            applications = rows
+        });
+    }
+
+
+
+
 }
