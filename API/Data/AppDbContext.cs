@@ -30,6 +30,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<Photo> Photos { get; set; }
 
+    public DbSet<ApplicationDocument> ApplicationDocuments { get; set; }
+
 
     // =========================================================
     // Equivalency Institution Data
@@ -45,6 +47,31 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+
+        // =========================================================
+        // Application Documents
+        // =========================================================
+
+        modelBuilder.Entity<ApplicationDocument>(entity =>
+        {
+            entity.HasKey(d => d.Id);
+
+            entity.Property(d => d.Url)
+                .HasMaxLength(1000)
+                .IsRequired();
+
+            entity.Property(d => d.PublicId)
+                .HasMaxLength(500);
+
+            entity.Property(d => d.FileName)
+                .HasMaxLength(500);
+
+            entity.HasOne(d => d.EquivalencyApplication)
+                .WithMany(a => a.Documents)
+                .HasForeignKey(d => d.EquivalencyApplicationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
 
         // =========================================================

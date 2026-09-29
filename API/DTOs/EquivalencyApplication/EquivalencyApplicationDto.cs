@@ -1,7 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using API.Enums;
 
 namespace API.DTOs.EquivalencyApplication;
@@ -13,6 +10,8 @@ public class EquivalencyApplicationDto
     public QualificationType QualificationType { get; set; }
 
     public string Status { get; set; } = string.Empty;
+
+    public int CurrentStep { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
