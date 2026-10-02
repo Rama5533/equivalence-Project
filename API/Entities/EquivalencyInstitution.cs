@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using API.Entities;
 
 namespace API.Entities;
 
@@ -21,4 +22,7 @@ public class EquivalencyInstitution
 
     public ICollection<EquivalencyMajor> Majors { get; set; }
         = new List<EquivalencyMajor>();
+
+        public InstitutionKind Kind { get; set; }
+    = InstitutionKind.HigherEducation;
 }

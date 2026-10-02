@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using API.Entities;
 
 namespace API.Entities;
 
@@ -18,4 +19,7 @@ public class EquivalencyMajor
     public bool? IsActive { get; set; }
 
     public EquivalencyInstitution Institution { get; set; } = null!;
+
+    public MajorKind Kind { get; set; }
+    = MajorKind.UniversityMajor;
 }
