@@ -38,27 +38,121 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
             throw new KeyNotFoundException("Applicant not found.");
         }
 
+
+
         // 2. Get required previous qualifications
-        var requiredQualifications = await _context.QualificationRequirements
-            .Where(r => r.QualificationType == dto.QualificationType)
-            .Select(r => r.RequiredQualificationType)
-            .ToListAsync();
+        // var requiredQualifications = await _context.QualificationRequirements
+        //     .Where(r => r.QualificationType == dto.QualificationType)
+        //     .Select(r => r.RequiredQualificationType)
+        //     .ToListAsync();
 
-        // 3. Get qualifications already owned by the applicant
-        var applicantQualifications = await _context.ApplicantQualifications
-            .Where(q => q.ApplicantId == applicantId)
-            .Select(q => q.qualificationType)
-            .ToListAsync();
-
-        // 4. Check all required qualifications
-        foreach (var requiredQualification in requiredQualifications)
+        var requiredQualifications = dto.QualificationType switch
         {
-            if (!applicantQualifications.Contains(requiredQualification))
+            QualificationType.Secondary =>
+            new List<QualificationType>(),
+
+            QualificationType.Bachelor or
+            QualificationType.Diploma or
+            QualificationType.MediumDiploma or
+            QualificationType.HigherDiploma =>
+                new List<QualificationType>
             {
-                throw new InvalidOperationException(
-                    $"Applicant must have {requiredQualification} qualification first.");
-            }
+                QualificationType.Secondary
+            },
+
+            QualificationType.Master or
+            QualificationType.PhD =>
+                new List<QualificationType>(),
+
+            _ => throw new InvalidOperationException("Invalid qualification type.")
+        };
+
+
+        // // 3. Get qualifications already owned by the applicant
+        // var applicantQualifications = await _context.ApplicantQualifications
+        //     .Where(q => q.ApplicantId == applicantId)
+        //     .Select(q => q.QualificationType)
+        //     .ToListAsync();
+
+        // // 4. Check all required qualifications
+        // foreach (var requiredQualification in requiredQualifications)
+        // {
+        //     if (!applicantQualifications.Contains(requiredQualification))
+        //     {
+        //         throw new InvalidOperationException(
+        //             $"Applicant must have {requiredQualification} qualification first.");
+        //     }
+        // }
+
+        //بدل ما نرفض الطلب إذا المؤهل السابق مش موجود، صرنا نفحص وجوده، وإذا مش موجود نتحقق من البيانات المرسلة ونحفظه.
+            // 3. Check and save missing previous qualifications
+    foreach (var requiredQualification in requiredQualifications)
+    {
+        var existingQualification = await _context.ApplicantQualifications
+            .FirstOrDefaultAsync(q =>
+                q.ApplicantId == applicantId &&
+                q.QualificationType == requiredQualification);
+
+        // Do not duplicate an existing qualification
+        if (existingQualification != null)
+        {
+            continue;
         }
+
+        // Previous qualification data is required if it is not registered
+        var previous = dto.PreviousQualification;
+
+        if (previous == null ||
+            previous.QualificationType != requiredQualification)
+        {
+            throw new InvalidOperationException(
+                $"Applicant must provide the missing {requiredQualification} qualification.");
+        }
+
+        // Validate country from the database
+        var countryExists = await _context.EquivalencyCountries
+            .AnyAsync(c => c.Id == previous.CountryId);
+
+        if (!countryExists)
+        {
+            throw new InvalidOperationException(
+                "Invalid country for the previous qualification.");
+        }
+
+        // Validate institution belongs to the selected country
+        var institutionExists = await _context.EquivalencyInstitutions
+            .AnyAsync(i =>
+                i.Id == previous.InstitutionId &&
+                i.CountryId == previous.CountryId);
+
+        if (!institutionExists)
+        {
+            throw new InvalidOperationException(
+                "Invalid institution for the selected country.");
+        }
+
+        // Validate graduation year
+        var currentYear = DateTime.UtcNow.Year;
+
+        if (previous.GraduationYear < 1900 ||
+            previous.GraduationYear > currentYear)
+        {
+            throw new InvalidOperationException(
+                "Invalid graduation year for the previous qualification.");
+        }
+
+        // Save the previous qualification
+        var applicantQualification = new ApplicantQualification
+        {
+            ApplicantId = applicantId,
+            QualificationType = previous.QualificationType,
+            CountryId = previous.CountryId,
+            InstitutionId = previous.InstitutionId,
+            GraduationYear = previous.GraduationYear
+        };
+
+        _context.ApplicantQualifications.Add(applicantQualification);
+    }
 
         // 5. Create the application draft
         var application = new EquivalencyApplication
@@ -204,159 +298,159 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
     }
 
     // =========================================================
-// STEP 3
-// =========================================================
+    // STEP 3
+    // =========================================================
 
-public async Task<Step3CertificateResponseDto> CompleteStep3Async(
-    string applicantId,
-    int applicationId,
-    Step3CertificateDto dto)
-{
-    var application = await _context.EquivalencyApplications
-        .FirstOrDefaultAsync(a =>
-            a.Id == applicationId &&
-            a.ApplicantId == applicantId);
-
-    if (application == null)
+    public async Task<Step3CertificateResponseDto> CompleteStep3Async(
+        string applicantId,
+        int applicationId,
+        Step3CertificateDto dto)
     {
-        throw new KeyNotFoundException(
-            "Application not found.");
-    }
+        var application = await _context.EquivalencyApplications
+            .FirstOrDefaultAsync(a =>
+                a.Id == applicationId &&
+                a.ApplicantId == applicantId);
 
-    // Step 2 must be completed first
-    if (application.CurrentStep < 2)
-    {
-        throw new InvalidOperationException(
-            "Step 2 must be completed first.");
-    }
+        if (application == null)
+        {
+            throw new KeyNotFoundException(
+                "Application not found.");
+        }
 
-    // -----------------------------------------
-    // Validate Country
-    // -----------------------------------------
+        // Step 2 must be completed first
+        if (application.CurrentStep < 2)
+        {
+            throw new InvalidOperationException(
+                "Step 2 must be completed first.");
+        }
 
-    var countryExists = await _context.EquivalencyCountries
-        .AnyAsync(c => c.Id == dto.CountryId);
+        // -----------------------------------------
+        // Validate Country
+        // -----------------------------------------
 
-    if (!countryExists)
-    {
-        throw new InvalidOperationException(
-            "Invalid country.");
-    }
+        var countryExists = await _context.EquivalencyCountries
+            .AnyAsync(c => c.Id == dto.CountryId);
 
-    // -----------------------------------------
-    // Validate Institution
-    // Institution must belong to Country
-    // -----------------------------------------
+        if (!countryExists)
+        {
+            throw new InvalidOperationException(
+                "Invalid country.");
+        }
 
-    var institutionExists = await _context.EquivalencyInstitutions
-        .AnyAsync(i =>
-            i.Id == dto.InstitutionId &&
-            i.CountryId == dto.CountryId);
+        // -----------------------------------------
+        // Validate Institution
+        // Institution must belong to Country
+        // -----------------------------------------
 
-    if (!institutionExists)
-    {
-        throw new InvalidOperationException(
-            "Invalid institution for the selected country.");
-    }
+        var institutionExists = await _context.EquivalencyInstitutions
+            .AnyAsync(i =>
+                i.Id == dto.InstitutionId &&
+                i.CountryId == dto.CountryId);
 
-    // -----------------------------------------
-    // Validate Major
-    // Major must belong to Institution
-    // -----------------------------------------
+        if (!institutionExists)
+        {
+            throw new InvalidOperationException(
+                "Invalid institution for the selected country.");
+        }
 
-    var majorExists = await _context.EquivalencyMajors
-        .AnyAsync(m =>
-            m.Id == dto.MajorId &&
-            m.InstitutionId == dto.InstitutionId);
+        // -----------------------------------------
+        // Validate Major
+        // Major must belong to Institution
+        // -----------------------------------------
 
-    if (!majorExists)
-    {
-        throw new InvalidOperationException(
-            "Invalid major for the selected institution.");
-    }
+        var majorExists = await _context.EquivalencyMajors
+            .AnyAsync(m =>
+                m.Id == dto.MajorId &&
+                m.InstitutionId == dto.InstitutionId);
 
-    // -----------------------------------------
-    // Validate Graduation Year
-    // -----------------------------------------
+        if (!majorExists)
+        {
+            throw new InvalidOperationException(
+                "Invalid major for the selected institution.");
+        }
 
-    var currentYear = DateTime.UtcNow.Year;
+        // -----------------------------------------
+        // Validate Graduation Year
+        // -----------------------------------------
 
-    if (dto.GraduationYear < 1900 ||
-        dto.GraduationYear > currentYear)
-    {
-        throw new InvalidOperationException(
-            "Invalid graduation year.");
-    }
+        var currentYear = DateTime.UtcNow.Year;
 
-    // -----------------------------------------
-    // Save Step 3
-    // -----------------------------------------
+        if (dto.GraduationYear < 1900 ||
+            dto.GraduationYear > currentYear)
+        {
+            throw new InvalidOperationException(
+                "Invalid graduation year.");
+        }
 
-    application.CountryId = dto.CountryId;
-    application.InstitutionId = dto.InstitutionId;
-    application.MajorId = dto.MajorId;
-    application.GraduationYear = dto.GraduationYear;
-    application.AdditionalNotes = dto.AdditionalNotes;
+        // -----------------------------------------
+        // Save Step 3
+        // -----------------------------------------
 
-    // Move from Step 2 → Step 3
-    if (application.CurrentStep == 2)
-    {
-        application.CurrentStep = 3;
-    }
+        application.CountryId = dto.CountryId;
+        application.InstitutionId = dto.InstitutionId;
+        application.MajorId = dto.MajorId;
+        application.GraduationYear = dto.GraduationYear;
+        application.AdditionalNotes = dto.AdditionalNotes;
 
-    await _context.SaveChangesAsync();
+        // Move from Step 2 → Step 3
+        if (application.CurrentStep == 2)
+        {
+            application.CurrentStep = 3;
+        }
 
-    return new Step3CertificateResponseDto
-    {
-        ApplicationId = application.Id,
+        await _context.SaveChangesAsync();
 
-        CountryId = application.CountryId!.Value,
+        return new Step3CertificateResponseDto
+        {
+            ApplicationId = application.Id,
 
-        InstitutionId = application.InstitutionId!.Value,
+            CountryId = application.CountryId!.Value,
 
-        MajorId = application.MajorId!.Value,
+            InstitutionId = application.InstitutionId!.Value,
 
-        GraduationYear = application.GraduationYear!.Value,
+            MajorId = application.MajorId!.Value,
 
-        AdditionalNotes = application.AdditionalNotes,
+            GraduationYear = application.GraduationYear!.Value,
 
-        CurrentStep = application.CurrentStep
-    };
+            AdditionalNotes = application.AdditionalNotes,
+
+            CurrentStep = application.CurrentStep
+        };
     }
 
     // =========================================================
-// STEP 4 - GET REQUIRED DOCUMENTS
-// =========================================================
+    // STEP 4 - GET REQUIRED DOCUMENTS
+    // =========================================================
 
-public async Task<List<RequiredDocumentDto>> GetRequiredDocumentsAsync(
-    string applicantId,
-    int applicationId)
-{
-    var application = await _context.EquivalencyApplications
-        .FirstOrDefaultAsync(a =>
-            a.Id == applicationId &&
-            a.ApplicantId == applicantId);
-
-    if (application == null)
+    public async Task<List<RequiredDocumentDto>> GetRequiredDocumentsAsync(
+        string applicantId,
+        int applicationId)
     {
-        throw new KeyNotFoundException(
-            "Application not found.");
-    }
+        var application = await _context.EquivalencyApplications
+            .FirstOrDefaultAsync(a =>
+                a.Id == applicationId &&
+                a.ApplicantId == applicantId);
 
-    if (application.CurrentStep < 3)
-    {
-        throw new InvalidOperationException(
-            "Step 3 must be completed first.");
-    }
+        if (application == null)
+        {
+            throw new KeyNotFoundException(
+                "Application not found.");
+        }
 
-if (application.QualificationType != QualificationType.Secondary &&
-    application.QualificationType != QualificationType.Bachelor)
-{
-    throw new InvalidOperationException(
-        "Document requirements for this qualification are not configured yet.");
-}
+        if (application.CurrentStep < 3)
+        {
+            throw new InvalidOperationException(
+                "Step 3 must be completed first.");
+        }
 
-    return new List<RequiredDocumentDto>
+        if (application.QualificationType != QualificationType.Secondary &&
+            application.QualificationType != QualificationType.Bachelor)
+        {
+            throw new InvalidOperationException(
+                "Document requirements for this qualification are not configured yet.");
+        }
+
+        return new List<RequiredDocumentDto>
     {
         new()
         {
@@ -386,468 +480,469 @@ if (application.QualificationType != QualificationType.Secondary &&
             Required = true
         }
     };
-}
-
-// =========================================================
-// STEP 4 - UPLOAD DOCUMENT
-// =========================================================
-
-public async Task<UploadDocumentResponseDto> UploadDocumentAsync(
-    string applicantId,
-    int applicationId,
-    DocumentType documentType,
-    IFormFile file)
-{
-    var application = await _context.EquivalencyApplications
-        .FirstOrDefaultAsync(a =>
-            a.Id == applicationId &&
-            a.ApplicantId == applicantId);
-
-    if (application == null)
-    {
-        throw new KeyNotFoundException(
-            "Application not found.");
     }
 
-    if (application.CurrentStep < 3)
-    {
-        throw new InvalidOperationException(
-            "Step 3 must be completed first.");
-    }
+    // =========================================================
+    // STEP 4 - UPLOAD DOCUMENT
+    // =========================================================
 
-if (application.QualificationType != QualificationType.Secondary &&
-    application.QualificationType != QualificationType.Bachelor)
-{
-    throw new InvalidOperationException(
-        "Document requirements for this qualification are not configured yet.");
-}
-
-    if (file == null || file.Length == 0)
+    public async Task<UploadDocumentResponseDto> UploadDocumentAsync(
+        string applicantId,
+        int applicationId,
+        DocumentType documentType,
+        IFormFile file)
     {
-        throw new InvalidOperationException(
-            "File is required.");
-    }
+        var application = await _context.EquivalencyApplications
+            .FirstOrDefaultAsync(a =>
+                a.Id == applicationId &&
+                a.ApplicantId == applicantId);
 
-    var allowedExtensions = new[]
-    {
+        if (application == null)
+        {
+            throw new KeyNotFoundException(
+                "Application not found.");
+        }
+
+        if (application.CurrentStep < 3)
+        {
+            throw new InvalidOperationException(
+                "Step 3 must be completed first.");
+        }
+
+        if (application.QualificationType != QualificationType.Secondary &&
+            application.QualificationType != QualificationType.Bachelor)
+        {
+            throw new InvalidOperationException(
+                "Document requirements for this qualification are not configured yet.");
+        }
+
+        if (file == null || file.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "File is required.");
+        }
+
+        var allowedExtensions = new[]
+        {
         ".jpg",
         ".jpeg",
         ".png",
         ".pdf"
     };
 
-    var extension = Path.GetExtension(file.FileName)
-        .ToLowerInvariant();
+        var extension = Path.GetExtension(file.FileName)
+            .ToLowerInvariant();
 
-    if (!allowedExtensions.Contains(extension))
-    {
-        throw new InvalidOperationException(
-            "Only JPG, JPEG, PNG, and PDF files are allowed.");
-    }
+        if (!allowedExtensions.Contains(extension))
+        {
+            throw new InvalidOperationException(
+                "Only JPG, JPEG, PNG, and PDF files are allowed.");
+        }
 
-    // Maximum 10 MB
-    const long maxFileSize = 10 * 1024 * 1024;
+        // Maximum 10 MB
+        const long maxFileSize = 10 * 1024 * 1024;
 
-    if (file.Length > maxFileSize)
-    {
-        throw new InvalidOperationException(
-            "File size cannot exceed 10 MB.");
-    }
+        if (file.Length > maxFileSize)
+        {
+            throw new InvalidOperationException(
+                "File size cannot exceed 10 MB.");
+        }
 
-    // Check if this document was uploaded before
-    var existingDocument = await _context.ApplicationDocuments
-        .FirstOrDefaultAsync(d =>
-            d.EquivalencyApplicationId == applicationId &&
-            d.DocumentType == documentType);
+        // Check if this document was uploaded before
+        var existingDocument = await _context.ApplicationDocuments
+            .FirstOrDefaultAsync(d =>
+                d.EquivalencyApplicationId == applicationId &&
+                d.DocumentType == documentType);
 
-    if (existingDocument != null)
-    {
-        throw new InvalidOperationException(
-            "This document has already been uploaded.");
-    }
+        if (existingDocument != null)
+        {
+            throw new InvalidOperationException(
+                "This document has already been uploaded.");
+        }
 
-    var uploadsFolder = Path.Combine(
-        Directory.GetCurrentDirectory(),
-        "wwwroot",
-        "uploads",
-        "applications",
-        applicationId.ToString());
+        var uploadsFolder = Path.Combine(
+            Directory.GetCurrentDirectory(),
+            "wwwroot",
+            "uploads",
+            "applications",
+            applicationId.ToString());
 
-    Directory.CreateDirectory(uploadsFolder);
+        Directory.CreateDirectory(uploadsFolder);
 
-    var uniqueFileName =
-        $"{Guid.NewGuid()}{extension}";
+        var uniqueFileName =
+            $"{Guid.NewGuid()}{extension}";
 
-    var filePath = Path.Combine(
-        uploadsFolder,
-        uniqueFileName);
+        var filePath = Path.Combine(
+            uploadsFolder,
+            uniqueFileName);
 
-    await using (var stream = new FileStream(
-        filePath,
-        FileMode.Create))
-    {
-        await file.CopyToAsync(stream);
-    }
+        await using (var stream = new FileStream(
+            filePath,
+            FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
 
-    var url =
-        $"/uploads/applications/{applicationId}/{uniqueFileName}";
+        var url =
+            $"/uploads/applications/{applicationId}/{uniqueFileName}";
 
-    var document = new ApplicationDocument
-    {
-        EquivalencyApplicationId = applicationId,
-        DocumentType = documentType,
-        Url = url,
-        FileName = file.FileName,
-        UploadedAt = DateTime.UtcNow
-    };
+        var document = new ApplicationDocument
+        {
+            EquivalencyApplicationId = applicationId,
+            DocumentType = documentType,
+            Url = url,
+            FileName = file.FileName,
+            UploadedAt = DateTime.UtcNow
+        };
 
-    _context.ApplicationDocuments.Add(document);
-
-    await _context.SaveChangesAsync();
-
-    return new UploadDocumentResponseDto
-    {
-        ApplicationId = applicationId,
-        DocumentId = document.Id,
-        DocumentType = document.DocumentType,
-        FileName = document.FileName,
-        Url = document.Url,
-        UploadedAt = document.UploadedAt
-    };
-}
-
-// =========================================================
-// STEP 4 - COMPLETE
-// =========================================================
-
-public async Task CompleteStep4Async(
-    string applicantId,
-    int applicationId)
-{
-    var application = await _context.EquivalencyApplications
-        .FirstOrDefaultAsync(a =>
-            a.Id == applicationId &&
-            a.ApplicantId == applicantId);
-
-    if (application == null)
-    {
-        throw new KeyNotFoundException(
-            "Application not found.");
-    }
-
-    if (application.CurrentStep < 3)
-    {
-        throw new InvalidOperationException(
-            "Step 3 must be completed first.");
-    }
-
-if (application.QualificationType != QualificationType.Secondary &&
-    application.QualificationType != QualificationType.Bachelor)
-{
-    throw new InvalidOperationException(
-        "Document requirements for this qualification are not configured yet.");
-}    var requiredDocumentTypes = new[]
-    {
-        DocumentType.PersonalPhoto,
-        DocumentType.PassportOrApprovedId,
-        DocumentType.BachelorCertificate,
-        DocumentType.BachelorTranscript
-    };
-
-    var uploadedDocumentTypes = await _context.ApplicationDocuments
-        .Where(d =>
-            d.EquivalencyApplicationId == applicationId &&
-            requiredDocumentTypes.Contains(d.DocumentType))
-        .Select(d => d.DocumentType)
-        .ToListAsync();
-
-    var missingDocuments = requiredDocumentTypes
-        .Except(uploadedDocumentTypes)
-        .ToList();
-
-    if (missingDocuments.Count > 0)
-    {
-        throw new InvalidOperationException(
-            "All required documents must be uploaded before completing Step 4.");
-    }
-
-    if (application.CurrentStep == 3)
-    {
-        application.CurrentStep = 4;
+        _context.ApplicationDocuments.Add(document);
 
         await _context.SaveChangesAsync();
-    }
-}
 
-// =========================================================
-// STEP 5 - APPLICATION REVIEW
-// =========================================================
-
-
-public async Task<EquivalencyApplicationReviewDto> GetReviewAsync(
-    string applicantId,
-    int applicationId)
-{
-    var application = await _context.EquivalencyApplications
-        .Include(a => a.Applicant)
-            .ThenInclude(a => a.User)
-        .Include(a => a.Country)
-        .Include(a => a.Institution)
-        .Include(a => a.Major)
-        .Include(a => a.Documents)
-        .FirstOrDefaultAsync(a =>
-            a.Id == applicationId &&
-            a.ApplicantId == applicantId);
-
-    if (application == null)
-    {
-        throw new KeyNotFoundException(
-            "Equivalency application not found.");
-    }
-
-    if (application.CurrentStep < 4)
-    {
-        throw new InvalidOperationException(
-            "The application must complete Step 4 before review.");
-    }
-
-    if (application.Applicant == null)
-    {
-        throw new InvalidOperationException(
-            "Applicant information is not available.");
-    }
-
-    if (application.Applicant.User == null)
-    {
-        throw new InvalidOperationException(
-            "Applicant login information is not available.");
-    }
-
-    if (application.Country == null ||
-        application.Institution == null ||
-        application.Major == null ||
-        application.GraduationYear == null)
-    {
-        throw new InvalidOperationException(
-            "Certificate information is incomplete.");
-    }
-
-    var review = new EquivalencyApplicationReviewDto
-    {
-        ApplicationId = application.Id,
-
-        QualificationType = application.QualificationType,
-
-        Status = application.Status,
-
-        CurrentStep = application.CurrentStep,
-
-        Applicant = new ApplicantReviewDto
+        return new UploadDocumentResponseDto
         {
-            FullName = application.Applicant.DisplayName,
+            ApplicationId = applicationId,
+            DocumentId = document.Id,
+            DocumentType = document.DocumentType,
+            FileName = document.FileName,
+            Url = document.Url,
+            UploadedAt = document.UploadedAt
+        };
+    }
 
-            NationalId = application.Applicant.NationalId ?? string.Empty,
+    // =========================================================
+    // STEP 4 - COMPLETE
+    // =========================================================
 
-            Email = application.Applicant.User.Email ?? string.Empty,
+    public async Task CompleteStep4Async(
+        string applicantId,
+        int applicationId)
+    {
+        var application = await _context.EquivalencyApplications
+            .FirstOrDefaultAsync(a =>
+                a.Id == applicationId &&
+                a.ApplicantId == applicantId);
 
-            Address = application.Applicant.Address ?? string.Empty,
-
-            PhoneNumber = application.Applicant.PhoneNumber ?? string.Empty
-        },
-
-        Certificate = new CertificateReviewDto
+        if (application == null)
         {
-            CountryId = application.Country.Id,
+            throw new KeyNotFoundException(
+                "Application not found.");
+        }
 
-            CountryName = application.Country.Name,
+        if (application.CurrentStep < 3)
+        {
+            throw new InvalidOperationException(
+                "Step 3 must be completed first.");
+        }
 
-            InstitutionId = application.Institution.Id,
-
-            InstitutionName = application.Institution.Name,
-
-            MajorId = application.Major.Id,
-
-            MajorName = application.Major.Name,
-
-            GraduationYear = application.GraduationYear.Value,
-
-            AdditionalNotes = application.AdditionalNotes
-        },
-
-        Documents = application.Documents
-            .OrderBy(d => d.DocumentType)
-            .Select(d => new DocumentReviewDto
+        if (application.QualificationType != QualificationType.Secondary &&
+            application.QualificationType != QualificationType.Bachelor)
+        {
+            throw new InvalidOperationException(
+                "Document requirements for this qualification are not configured yet.");
+        }
+        var requiredDocumentTypes = new[]
             {
-                DocumentId = d.Id,
-
-                DocumentType = d.DocumentType,
-
-                FileName = d.FileName ?? string.Empty,
-
-                Url = d.Url,
-
-                UploadedAt = d.UploadedAt
-            })
-            .ToList()
-    };
-
-    return review;
-}
-
-
-// =========================================================
-// STEP 6 - APPLICATION SUBMISSION
-// =========================================================
-
-public async Task<SubmitApplicationResponseDto> SubmitAsync(
-    string applicantId,
-    int applicationId)
-{
-    var application = await _context.EquivalencyApplications
-        .Include(a => a.Applicant)
-            .ThenInclude(a => a.User)
-        .Include(a => a.Country)
-        .Include(a => a.Institution)
-        .Include(a => a.Major)
-        .Include(a => a.Documents)
-        .FirstOrDefaultAsync(a =>
-            a.Id == applicationId &&
-            a.ApplicantId == applicantId);
-
-    if (application == null)
-    {
-        throw new KeyNotFoundException(
-            "Equivalency application not found.");
-    }
-
-    if (application.Status != "Draft")
-    {
-        throw new InvalidOperationException(
-            "Only draft applications can be submitted.");
-    }
-
-    if (application.CurrentStep < 4)
-    {
-        throw new InvalidOperationException(
-            "The application must complete all previous steps before submission.");
-    }
-
-    // =========================================================
-    // Validate Applicant Information
-    // =========================================================
-
-    if (application.Applicant == null)
-    {
-        throw new InvalidOperationException(
-            "Applicant information is missing.");
-    }
-
-    if (string.IsNullOrWhiteSpace(application.Applicant.DisplayName))
-    {
-        throw new InvalidOperationException(
-            "Full name is required.");
-    }
-
-    if (string.IsNullOrWhiteSpace(application.Applicant.NationalId))
-    {
-        throw new InvalidOperationException(
-            "National ID is required.");
-    }
-
-    if (application.Applicant.User == null ||
-        string.IsNullOrWhiteSpace(application.Applicant.User.Email))
-    {
-        throw new InvalidOperationException(
-            "Email is required.");
-    }
-
-    if (string.IsNullOrWhiteSpace(application.Applicant.Address))
-    {
-        throw new InvalidOperationException(
-            "Proof of residence is required.");
-    }
-
-    if (string.IsNullOrWhiteSpace(application.Applicant.PhoneNumber))
-    {
-        throw new InvalidOperationException(
-            "Phone number is required.");
-    }
-
-    // =========================================================
-    // Validate Certificate Information
-    // =========================================================
-
-    if (application.Country == null)
-    {
-        throw new InvalidOperationException(
-            "Country is required.");
-    }
-
-    if (application.Institution == null)
-    {
-        throw new InvalidOperationException(
-            "Institution is required.");
-    }
-
-    if (application.Major == null)
-    {
-        throw new InvalidOperationException(
-            "Major is required.");
-    }
-
-    if (!application.GraduationYear.HasValue)
-    {
-        throw new InvalidOperationException(
-            "Graduation year is required.");
-    }
-
-    // =========================================================
-    // Validate Required Documents
-    // =========================================================
-
-    var requiredDocumentTypes = new[]
-    {
         DocumentType.PersonalPhoto,
         DocumentType.PassportOrApprovedId,
         DocumentType.BachelorCertificate,
         DocumentType.BachelorTranscript
     };
 
-    var uploadedDocumentTypes = application.Documents
-        .Select(d => d.DocumentType)
-        .ToHashSet();
+        var uploadedDocumentTypes = await _context.ApplicationDocuments
+            .Where(d =>
+                d.EquivalencyApplicationId == applicationId &&
+                requiredDocumentTypes.Contains(d.DocumentType))
+            .Select(d => d.DocumentType)
+            .ToListAsync();
 
-    var missingDocuments = requiredDocumentTypes
-        .Where(type => !uploadedDocumentTypes.Contains(type))
-        .ToList();
+        var missingDocuments = requiredDocumentTypes
+            .Except(uploadedDocumentTypes)
+            .ToList();
 
-    if (missingDocuments.Count > 0)
-    {
-        throw new InvalidOperationException(
-            "All required documents must be uploaded before submitting the application.");
+        if (missingDocuments.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "All required documents must be uploaded before completing Step 4.");
+        }
+
+        if (application.CurrentStep == 3)
+        {
+            application.CurrentStep = 4;
+
+            await _context.SaveChangesAsync();
+        }
     }
 
     // =========================================================
-    // Submit Application
+    // STEP 5 - APPLICATION REVIEW
     // =========================================================
 
-    application.Status = "Submitted";
 
-    application.SubmittedAt = DateTime.UtcNow;
-
-    application.CurrentStep = 6;
-
-    await _context.SaveChangesAsync();
-
-    return new SubmitApplicationResponseDto
+    public async Task<EquivalencyApplicationReviewDto> GetReviewAsync(
+        string applicantId,
+        int applicationId)
     {
-        ApplicationId = application.Id,
+        var application = await _context.EquivalencyApplications
+            .Include(a => a.Applicant)
+                .ThenInclude(a => a.User)
+            .Include(a => a.Country)
+            .Include(a => a.Institution)
+            .Include(a => a.Major)
+            .Include(a => a.Documents)
+            .FirstOrDefaultAsync(a =>
+                a.Id == applicationId &&
+                a.ApplicantId == applicantId);
 
-        Status = application.Status,
+        if (application == null)
+        {
+            throw new KeyNotFoundException(
+                "Equivalency application not found.");
+        }
 
-        CurrentStep = application.CurrentStep,
+        if (application.CurrentStep < 4)
+        {
+            throw new InvalidOperationException(
+                "The application must complete Step 4 before review.");
+        }
 
-        SubmittedAt = application.SubmittedAt.Value
+        if (application.Applicant == null)
+        {
+            throw new InvalidOperationException(
+                "Applicant information is not available.");
+        }
+
+        if (application.Applicant.User == null)
+        {
+            throw new InvalidOperationException(
+                "Applicant login information is not available.");
+        }
+
+        if (application.Country == null ||
+            application.Institution == null ||
+            application.Major == null ||
+            application.GraduationYear == null)
+        {
+            throw new InvalidOperationException(
+                "Certificate information is incomplete.");
+        }
+
+        var review = new EquivalencyApplicationReviewDto
+        {
+            ApplicationId = application.Id,
+
+            QualificationType = application.QualificationType,
+
+            Status = application.Status,
+
+            CurrentStep = application.CurrentStep,
+
+            Applicant = new ApplicantReviewDto
+            {
+                FullName = application.Applicant.DisplayName,
+
+                NationalId = application.Applicant.NationalId ?? string.Empty,
+
+                Email = application.Applicant.User.Email ?? string.Empty,
+
+                Address = application.Applicant.Address ?? string.Empty,
+
+                PhoneNumber = application.Applicant.PhoneNumber ?? string.Empty
+            },
+
+            Certificate = new CertificateReviewDto
+            {
+                CountryId = application.Country.Id,
+
+                CountryName = application.Country.Name,
+
+                InstitutionId = application.Institution.Id,
+
+                InstitutionName = application.Institution.Name,
+
+                MajorId = application.Major.Id,
+
+                MajorName = application.Major.Name,
+
+                GraduationYear = application.GraduationYear.Value,
+
+                AdditionalNotes = application.AdditionalNotes
+            },
+
+            Documents = application.Documents
+                .OrderBy(d => d.DocumentType)
+                .Select(d => new DocumentReviewDto
+                {
+                    DocumentId = d.Id,
+
+                    DocumentType = d.DocumentType,
+
+                    FileName = d.FileName ?? string.Empty,
+
+                    Url = d.Url,
+
+                    UploadedAt = d.UploadedAt
+                })
+                .ToList()
+        };
+
+        return review;
+    }
+
+
+    // =========================================================
+    // STEP 6 - APPLICATION SUBMISSION
+    // =========================================================
+
+    public async Task<SubmitApplicationResponseDto> SubmitAsync(
+        string applicantId,
+        int applicationId)
+    {
+        var application = await _context.EquivalencyApplications
+            .Include(a => a.Applicant)
+                .ThenInclude(a => a.User)
+            .Include(a => a.Country)
+            .Include(a => a.Institution)
+            .Include(a => a.Major)
+            .Include(a => a.Documents)
+            .FirstOrDefaultAsync(a =>
+                a.Id == applicationId &&
+                a.ApplicantId == applicantId);
+
+        if (application == null)
+        {
+            throw new KeyNotFoundException(
+                "Equivalency application not found.");
+        }
+
+        if (application.Status != "Draft")
+        {
+            throw new InvalidOperationException(
+                "Only draft applications can be submitted.");
+        }
+
+        if (application.CurrentStep < 4)
+        {
+            throw new InvalidOperationException(
+                "The application must complete all previous steps before submission.");
+        }
+
+        // =========================================================
+        // Validate Applicant Information
+        // =========================================================
+
+        if (application.Applicant == null)
+        {
+            throw new InvalidOperationException(
+                "Applicant information is missing.");
+        }
+
+        if (string.IsNullOrWhiteSpace(application.Applicant.DisplayName))
+        {
+            throw new InvalidOperationException(
+                "Full name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(application.Applicant.NationalId))
+        {
+            throw new InvalidOperationException(
+                "National ID is required.");
+        }
+
+        if (application.Applicant.User == null ||
+            string.IsNullOrWhiteSpace(application.Applicant.User.Email))
+        {
+            throw new InvalidOperationException(
+                "Email is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(application.Applicant.Address))
+        {
+            throw new InvalidOperationException(
+                "Proof of residence is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(application.Applicant.PhoneNumber))
+        {
+            throw new InvalidOperationException(
+                "Phone number is required.");
+        }
+
+        // =========================================================
+        // Validate Certificate Information
+        // =========================================================
+
+        if (application.Country == null)
+        {
+            throw new InvalidOperationException(
+                "Country is required.");
+        }
+
+        if (application.Institution == null)
+        {
+            throw new InvalidOperationException(
+                "Institution is required.");
+        }
+
+        if (application.Major == null)
+        {
+            throw new InvalidOperationException(
+                "Major is required.");
+        }
+
+        if (!application.GraduationYear.HasValue)
+        {
+            throw new InvalidOperationException(
+                "Graduation year is required.");
+        }
+
+        // =========================================================
+        // Validate Required Documents
+        // =========================================================
+
+        var requiredDocumentTypes = new[]
+        {
+        DocumentType.PersonalPhoto,
+        DocumentType.PassportOrApprovedId,
+        DocumentType.BachelorCertificate,
+        DocumentType.BachelorTranscript
     };
-}
+
+        var uploadedDocumentTypes = application.Documents
+            .Select(d => d.DocumentType)
+            .ToHashSet();
+
+        var missingDocuments = requiredDocumentTypes
+            .Where(type => !uploadedDocumentTypes.Contains(type))
+            .ToList();
+
+        if (missingDocuments.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "All required documents must be uploaded before submitting the application.");
+        }
+
+        // =========================================================
+        // Submit Application
+        // =========================================================
+
+        application.Status = "Submitted";
+
+        application.SubmittedAt = DateTime.UtcNow;
+
+        application.CurrentStep = 6;
+
+        await _context.SaveChangesAsync();
+
+        return new SubmitApplicationResponseDto
+        {
+            ApplicationId = application.Id,
+
+            Status = application.Status,
+
+            CurrentStep = application.CurrentStep,
+
+            SubmittedAt = application.SubmittedAt.Value
+        };
+    }
 }

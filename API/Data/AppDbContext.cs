@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
+
 namespace API.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options)
@@ -353,6 +354,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
                     Id = 7,
                     QualificationType = QualificationType.PhD,
                     RequiredQualificationType = QualificationType.Master
+                }
+                ,
+                new QualificationRequirement
+                {
+                    Id = 8,
+                    QualificationType = QualificationType.MediumDiploma,
+                    RequiredQualificationType = QualificationType.Secondary
+                },
+                new QualificationRequirement
+                {
+                    Id = 9,
+                    QualificationType = QualificationType.HigherDiploma,
+                    RequiredQualificationType = QualificationType.Secondary
                 }
             );
     }

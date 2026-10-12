@@ -171,12 +171,25 @@ namespace API.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<int>("qualificationType")
+                    b.Property<short>("CountryId")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("GraduationYear")
+                        .HasColumnType("int");
+
+                    b.Property<int>("InstitutionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("QualificationType")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ApplicantId");
+
+                    b.HasIndex("CountryId");
+
+                    b.HasIndex("InstitutionId");
 
                     b.ToTable("ApplicantQualifications");
                 });
@@ -556,6 +569,18 @@ namespace API.Migrations
                             Id = 7,
                             QualificationType = 5,
                             RequiredQualificationType = 4
+                        },
+                        new
+                        {
+                            Id = 8,
+                            QualificationType = 6,
+                            RequiredQualificationType = 1
+                        },
+                        new
+                        {
+                            Id = 9,
+                            QualificationType = 7,
+                            RequiredQualificationType = 1
                         });
                 });
 
@@ -790,7 +815,23 @@ namespace API.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("API.Entities.EquivalencyCountry", "Country")
+                        .WithMany()
+                        .HasForeignKey("CountryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("API.Entities.EquivalencyInstitution", "Institution")
+                        .WithMany()
+                        .HasForeignKey("InstitutionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Applicant");
+
+                    b.Navigation("Country");
+
+                    b.Navigation("Institution");
                 });
 
             modelBuilder.Entity("API.Entities.ApplicationDocument", b =>

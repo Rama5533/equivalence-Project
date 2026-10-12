@@ -1,4 +1,4 @@
-namespace API.Entities;
+namespace API.Enums;
 
 public enum InstitutionKind
 {
