@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using API.Data;
@@ -8,6 +9,7 @@ using API.Entities;
 using Microsoft.EntityFrameworkCore;
 using API.Enums;
 using Microsoft.AspNetCore.Http;
+using Newtonsoft.Json;
 
 namespace API.Services;
 
@@ -18,6 +20,125 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
     public EquivalencyApplicationService(AppDbContext context)
     {
         _context = context;
+    }
+
+    // =========================================================
+    // COMMON METHOD
+    // Get required documents based on qualification type
+    // =========================================================
+
+    private static DocumentType[] GetRequiredDocumentTypes(
+        QualificationType qualificationType)
+    {
+        var commonDocuments = new[]
+        {
+            DocumentType.PersonalPhoto,
+            DocumentType.PassportOrApprovedId
+        };
+
+        var qualificationDocuments = qualificationType switch
+        {
+            QualificationType.Secondary =>
+                new[]
+                {
+                    DocumentType.BachelorCertificate,
+                    DocumentType.BachelorTranscript
+                },
+
+            QualificationType.Diploma or
+            QualificationType.MediumDiploma or
+            QualificationType.HigherDiploma or
+            QualificationType.Bachelor =>
+                new[]
+                {
+                    DocumentType.BachelorCertificate,
+                    DocumentType.BachelorTranscript
+                },
+
+            QualificationType.Master =>
+                new[]
+                {
+                    DocumentType.MasterCertificate,
+                    DocumentType.MasterTranscript
+                },
+
+            QualificationType.doctorate =>
+                new[]
+                {
+                    DocumentType.doctorateCertificate,
+                    DocumentType.doctorateTranscript
+                },
+
+            _ => throw new InvalidOperationException(
+                "Document requirements for this qualification are not configured.")
+        };
+
+        return commonDocuments
+            .Concat(qualificationDocuments)
+            .ToArray();
+    }
+
+    // =========================================================
+    // COMMON METHOD
+    // Check whether the applicant can edit the application
+    // =========================================================
+
+    private static void EnsureApplicationCanBeEdited(
+        EquivalencyApplication application)
+    {
+        var editableStatuses = new[]
+        {
+            "Draft",
+            "Submitted"
+        };
+
+        if (!editableStatuses.Contains(application.Status))
+        {
+            throw new InvalidOperationException(
+                "This application can no longer be edited because it is under review or has reached a final status.");
+        }
+    }
+
+    // =========================================================
+    // COMMON METHOD
+    // Validate uploaded document file
+    // =========================================================
+
+    private static string ValidateDocumentFile(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "File is required.");
+        }
+
+        var allowedExtensions = new[]
+        {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".pdf"
+        };
+
+        var extension = Path.GetExtension(file.FileName)
+            .ToLowerInvariant();
+
+        if (!allowedExtensions.Contains(extension))
+        {
+            throw new InvalidOperationException(
+                "Only JPG, JPEG, PNG, and PDF files are allowed.");
+        }
+
+        // Maximum 10 MB
+        const long maxFileSize = 10 * 1024 * 1024;
+
+        if (file.Length > maxFileSize)
+        {
+            throw new InvalidOperationException(
+                "File size cannot exceed 10 MB.");
+        }
+
+        return extension;
     }
 
     // =========================================================
@@ -38,8 +159,6 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
             throw new KeyNotFoundException("Applicant not found.");
         }
 
-
-
         // 2. Get required previous qualifications
         // var requiredQualifications = await _context.QualificationRequirements
         //     .Where(r => r.QualificationType == dto.QualificationType)
@@ -49,24 +168,35 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
         var requiredQualifications = dto.QualificationType switch
         {
             QualificationType.Secondary =>
-            new List<QualificationType>(),
+                new List<QualificationType>(),
 
             QualificationType.Bachelor or
             QualificationType.Diploma or
             QualificationType.MediumDiploma or
             QualificationType.HigherDiploma =>
                 new List<QualificationType>
-            {
-                QualificationType.Secondary
-            },
+                {
+                    QualificationType.Secondary
+                },
 
-            QualificationType.Master or
-            QualificationType.PhD =>
-                new List<QualificationType>(),
+            QualificationType.Master =>
+                new List<QualificationType>
+                {
+                    QualificationType.Secondary,
+                    QualificationType.Bachelor
+                },
 
-            _ => throw new InvalidOperationException("Invalid qualification type.")
+            QualificationType.doctorate =>
+                new List<QualificationType>
+                {
+                    QualificationType.Secondary,
+                    QualificationType.Bachelor,
+                    QualificationType.Master
+                },
+
+            _ => throw new InvalidOperationException(
+                "Invalid qualification type.")
         };
-
 
         // // 3. Get qualifications already owned by the applicant
         // var applicantQualifications = await _context.ApplicantQualifications
@@ -84,75 +214,110 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
         //     }
         // }
 
-        //بدل ما نرفض الطلب إذا المؤهل السابق مش موجود، صرنا نفحص وجوده، وإذا مش موجود نتحقق من البيانات المرسلة ونحفظه.
-            // 3. Check and save missing previous qualifications
-    foreach (var requiredQualification in requiredQualifications)
-    {
-        var existingQualification = await _context.ApplicantQualifications
-            .FirstOrDefaultAsync(q =>
-                q.ApplicantId == applicantId &&
-                q.QualificationType == requiredQualification);
+        // بدل ما نرفض الطلب إذا المؤهل السابق مش موجود، صرنا نفحص وجوده،
+        // وإذا مش موجود نتحقق من البيانات المرسلة ونحفظه.
 
-        // Do not duplicate an existing qualification
-        if (existingQualification != null)
-        {
-            continue;
-        }
 
-        // Previous qualification data is required if it is not registered
-        var previous = dto.PreviousQualification;
 
-        if (previous == null ||
-            previous.QualificationType != requiredQualification)
-        {
-            throw new InvalidOperationException(
-                $"Applicant must provide the missing {requiredQualification} qualification.");
-        }
+        // 3. Check and save missing previous qualifications
+        // + Get qualifications already owned by the applicant
+        var applicantQualifications = await _context.ApplicantQualifications
+            .Where(q => q.ApplicantId == applicantId)
+            .ToListAsync();
 
-        // Validate country from the database
-        var countryExists = await _context.EquivalencyCountries
-            .AnyAsync(c => c.Id == previous.CountryId);
+        // 4. Find the required qualifications that are missing
+        var missingQualifications = requiredQualifications
+            .Where(required => !applicantQualifications.Any(existing =>
+                existing.QualificationType == required))
+            .ToList();
 
-        if (!countryExists)
+        // 5. Read submitted previous qualifications
+        var submittedQualifications = dto.PreviousQualifications
+            ?? new List<PreviousQualificationDto>();
+
+        // Prevent duplicate qualification types
+        var duplicateTypes = submittedQualifications
+            .GroupBy(q => q.QualificationType)
+            .Any(group => group.Count() > 1);
+
+        if (duplicateTypes)
         {
             throw new InvalidOperationException(
-                "Invalid country for the previous qualification.");
+                "Duplicate previous qualification types are not allowed.");
         }
 
-        // Validate institution belongs to the selected country
-        var institutionExists = await _context.EquivalencyInstitutions
-            .AnyAsync(i =>
-                i.Id == previous.InstitutionId &&
-                i.CountryId == previous.CountryId);
+        // Ensure submitted qualifications are actually required
+        foreach (var previous in submittedQualifications)
+        {
+            if (!missingQualifications.Contains(previous.QualificationType))
+            {
+                throw new InvalidOperationException(
+                    $"The submitted {previous.QualificationType} qualification is not required or is already registered.");
+            }
+        }
 
-        if (!institutionExists)
+        // Ensure every missing qualification has been submitted
+        var submittedTypes = submittedQualifications
+            .Select(q => q.QualificationType)
+            .ToHashSet();
+
+        var stillMissing = missingQualifications
+            .Where(required => !submittedTypes.Contains(required))
+            .ToList();
+
+        if (stillMissing.Count > 0)
         {
             throw new InvalidOperationException(
-                "Invalid institution for the selected country.");
+                $"Missing required previous qualifications: {string.Join(", ", stillMissing)}.");
         }
 
-        // Validate graduation year
-        var currentYear = DateTime.UtcNow.Year;
-
-        if (previous.GraduationYear < 1900 ||
-            previous.GraduationYear > currentYear)
+        // 6. Validate and save previous qualifications
+        foreach (var previous in submittedQualifications)
         {
-            throw new InvalidOperationException(
-                "Invalid graduation year for the previous qualification.");
+            // Validate country
+            var countryExists = await _context.EquivalencyCountries
+                .AnyAsync(c => c.Id == previous.CountryId);
+
+            if (!countryExists)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid country for the previous {previous.QualificationType} qualification.");
+            }
+
+            // Validate institution belongs to country
+            var institutionExists = await _context.EquivalencyInstitutions
+                .AnyAsync(i =>
+                    i.Id == previous.InstitutionId &&
+                    i.CountryId == previous.CountryId);
+
+            if (!institutionExists)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid institution for the previous {previous.QualificationType} qualification.");
+            }
+
+            // Validate graduation year
+            var currentYear = DateTime.UtcNow.Year;
+
+            if (previous.GraduationYear < 1900 ||
+                previous.GraduationYear > currentYear)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid graduation year for the previous {previous.QualificationType} qualification.");
+            }
+
+            // Save the previous qualification
+            var applicantQualification = new ApplicantQualification
+            {
+                ApplicantId = applicantId,
+                QualificationType = previous.QualificationType,
+                CountryId = previous.CountryId,
+                InstitutionId = previous.InstitutionId,
+                GraduationYear = previous.GraduationYear
+            };
+
+            _context.ApplicantQualifications.Add(applicantQualification);
         }
-
-        // Save the previous qualification
-        var applicantQualification = new ApplicantQualification
-        {
-            ApplicantId = applicantId,
-            QualificationType = previous.QualificationType,
-            CountryId = previous.CountryId,
-            InstitutionId = previous.InstitutionId,
-            GraduationYear = previous.GraduationYear
-        };
-
-        _context.ApplicantQualifications.Add(applicantQualification);
-    }
 
         // 5. Create the application draft
         var application = new EquivalencyApplication
@@ -185,6 +350,7 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
     // STEP 2
     // Get applicant profile data
     // =========================================================
+
     public async Task<Step2ApplicantDto> CompleteStep2Async(
         string applicantId,
         int applicationId)
@@ -202,6 +368,9 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
             throw new KeyNotFoundException(
                 "Application not found.");
         }
+
+        // Check whether the applicant can edit the application
+        EnsureApplicationCanBeEdited(application);
 
         // Step 2 can only be reached after Step 1
         if (application.CurrentStep < 1)
@@ -299,6 +468,7 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
 
     // =========================================================
     // STEP 3
+    // Complete certificate information
     // =========================================================
 
     public async Task<Step3CertificateResponseDto> CompleteStep3Async(
@@ -316,6 +486,9 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
             throw new KeyNotFoundException(
                 "Application not found.");
         }
+
+        // Check whether the applicant can edit the application
+        EnsureApplicationCanBeEdited(application);
 
         // Step 2 must be completed first
         if (application.CurrentStep < 2)
@@ -393,7 +566,7 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
         application.AdditionalNotes = dto.AdditionalNotes;
 
         // Move from Step 2 → Step 3
-        if (application.CurrentStep == 2)
+        if (application.CurrentStep < 3)
         {
             application.CurrentStep = 3;
         }
@@ -420,6 +593,7 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
 
     // =========================================================
     // STEP 4 - GET REQUIRED DOCUMENTS
+    // Get the required documents for the selected qualification
     // =========================================================
 
     public async Task<List<RequiredDocumentDto>> GetRequiredDocumentsAsync(
@@ -443,47 +617,53 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
                 "Step 3 must be completed first.");
         }
 
-        if (application.QualificationType != QualificationType.Secondary &&
-            application.QualificationType != QualificationType.Bachelor)
-        {
-            throw new InvalidOperationException(
-                "Document requirements for this qualification are not configured yet.");
-        }
+        var requiredDocumentTypes = GetRequiredDocumentTypes(
+            application.QualificationType);
 
-        return new List<RequiredDocumentDto>
-    {
-        new()
-        {
-            DocumentType = DocumentType.PersonalPhoto,
-            Name = "Recent Personal Photo",
-            Required = true
-        },
+        var requiredDocuments = requiredDocumentTypes
+            .Select(documentType => new RequiredDocumentDto
+            {
+                DocumentType = documentType,
 
-        new()
-        {
-            DocumentType = DocumentType.PassportOrApprovedId,
-            Name = "Certified Passport or Approved Identification Document",
-            Required = true
-        },
+                Name = documentType switch
+                {
+                    DocumentType.PersonalPhoto =>
+                        "Recent Personal Photo",
 
-        new()
-        {
-            DocumentType = DocumentType.BachelorCertificate,
-            Name = "Certified Bachelor Certificate or Equivalent",
-            Required = true
-        },
+                    DocumentType.PassportOrApprovedId =>
+                        "Certified Passport or Approved Identification Document",
 
-        new()
-        {
-            DocumentType = DocumentType.BachelorTranscript,
-            Name = "Certified Transcript for Required Subjects and Academic Years",
-            Required = true
-        }
-    };
+                    DocumentType.BachelorCertificate =>
+                        "Certificate of the Previous or Requested Qualification",
+
+                    DocumentType.BachelorTranscript =>
+                        "Transcript of the Previous or Requested Qualification",
+
+                    DocumentType.MasterCertificate =>
+                        "Master Certificate",
+
+                    DocumentType.MasterTranscript =>
+                        "Master Transcript",
+
+                    DocumentType.doctorateCertificate =>
+                        "doctorate Certificate",
+
+                    DocumentType.doctorateTranscript =>
+                        "doctorate Transcript",
+
+                    _ => documentType.ToString()
+                },
+
+                Required = true
+            })
+            .ToList();
+
+        return requiredDocuments;
     }
 
     // =========================================================
     // STEP 4 - UPLOAD DOCUMENT
+    // Upload a document for the current application
     // =========================================================
 
     public async Task<UploadDocumentResponseDto> UploadDocumentAsync(
@@ -503,62 +683,35 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
                 "Application not found.");
         }
 
+        // Check whether the applicant can edit the application
+        EnsureApplicationCanBeEdited(application);
+
         if (application.CurrentStep < 3)
         {
             throw new InvalidOperationException(
                 "Step 3 must be completed first.");
         }
 
-        if (application.QualificationType != QualificationType.Secondary &&
-            application.QualificationType != QualificationType.Bachelor)
+        // Get the required documents for this qualification
+        var requiredDocumentTypes = GetRequiredDocumentTypes(
+            application.QualificationType);
+
+        // Prevent uploading a document that is not required
+        // for the selected qualification.
+        if (!requiredDocumentTypes.Contains(documentType))
         {
             throw new InvalidOperationException(
-                "Document requirements for this qualification are not configured yet.");
+                "This document type is not required for the selected qualification.");
         }
 
-        if (file == null || file.Length == 0)
-        {
-            throw new InvalidOperationException(
-                "File is required.");
-        }
-
-        var allowedExtensions = new[]
-        {
-        ".jpg",
-        ".jpeg",
-        ".png",
-        ".pdf"
-    };
-
-        var extension = Path.GetExtension(file.FileName)
-            .ToLowerInvariant();
-
-        if (!allowedExtensions.Contains(extension))
-        {
-            throw new InvalidOperationException(
-                "Only JPG, JPEG, PNG, and PDF files are allowed.");
-        }
-
-        // Maximum 10 MB
-        const long maxFileSize = 10 * 1024 * 1024;
-
-        if (file.Length > maxFileSize)
-        {
-            throw new InvalidOperationException(
-                "File size cannot exceed 10 MB.");
-        }
+        var extension = ValidateDocumentFile(file);
 
         // Check if this document was uploaded before
+        // If it exists, replace the old document instead of rejecting the upload.
         var existingDocument = await _context.ApplicationDocuments
             .FirstOrDefaultAsync(d =>
                 d.EquivalencyApplicationId == applicationId &&
                 d.DocumentType == documentType);
-
-        if (existingDocument != null)
-        {
-            throw new InvalidOperationException(
-                "This document has already been uploaded.");
-        }
 
         var uploadsFolder = Path.Combine(
             Directory.GetCurrentDirectory(),
@@ -576,9 +729,11 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
             uploadsFolder,
             uniqueFileName);
 
+        // Save the new file first.
+        // The old document remains available if saving the new file fails.
         await using (var stream = new FileStream(
             filePath,
-            FileMode.Create))
+            FileMode.CreateNew))
         {
             await file.CopyToAsync(stream);
         }
@@ -586,32 +741,88 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
         var url =
             $"/uploads/applications/{applicationId}/{uniqueFileName}";
 
-        var document = new ApplicationDocument
+        string? oldFilePath = null;
+
+        if (existingDocument != null)
         {
-            EquivalencyApplicationId = applicationId,
-            DocumentType = documentType,
-            Url = url,
-            FileName = file.FileName,
-            UploadedAt = DateTime.UtcNow
-        };
+            // Get the old file path from its stored URL.
+            var oldUrl = existingDocument.Url;
 
-        _context.ApplicationDocuments.Add(document);
+            if (!string.IsNullOrWhiteSpace(oldUrl))
+            {
+                var oldRelativePath = oldUrl
+                    .TrimStart('/')
+                    .Replace('/', Path.DirectorySeparatorChar);
 
-        await _context.SaveChangesAsync();
+                oldFilePath = Path.Combine(
+                    Directory.GetCurrentDirectory(),
+                    "wwwroot",
+                    oldRelativePath.Replace(
+                        $"uploads{Path.DirectorySeparatorChar}",
+                        $"uploads{Path.DirectorySeparatorChar}",
+                        StringComparison.OrdinalIgnoreCase));
+            }
+
+            // Update the existing database record.
+            existingDocument.Url = url;
+            existingDocument.FileName = file.FileName;
+            existingDocument.UploadedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            var document = new ApplicationDocument
+            {
+                EquivalencyApplicationId = applicationId,
+                DocumentType = documentType,
+                Url = url,
+                FileName = file.FileName,
+                UploadedAt = DateTime.UtcNow
+            };
+
+            _context.ApplicationDocuments.Add(document);
+            existingDocument = document;
+        }
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch
+        {
+            // Remove the new file if the database save fails.
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+
+            throw;
+        }
+
+        // Delete the old physical file only after the database save succeeds.
+        if (!string.IsNullOrWhiteSpace(oldFilePath) &&
+            File.Exists(oldFilePath) &&
+            !string.Equals(
+                Path.GetFullPath(oldFilePath),
+                Path.GetFullPath(filePath),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            File.Delete(oldFilePath);
+        }
 
         return new UploadDocumentResponseDto
         {
             ApplicationId = applicationId,
-            DocumentId = document.Id,
-            DocumentType = document.DocumentType,
-            FileName = document.FileName,
-            Url = document.Url,
-            UploadedAt = document.UploadedAt
+            DocumentId = existingDocument.Id,
+            DocumentType = existingDocument.DocumentType,
+            FileName = existingDocument.FileName,
+            Url = existingDocument.Url,
+            UploadedAt = existingDocument.UploadedAt
         };
     }
 
     // =========================================================
     // STEP 4 - COMPLETE
+    // Check required documents and complete Step 4
     // =========================================================
 
     public async Task CompleteStep4Async(
@@ -629,25 +840,18 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
                 "Application not found.");
         }
 
+        // Check whether the applicant can edit the application
+        EnsureApplicationCanBeEdited(application);
+
         if (application.CurrentStep < 3)
         {
             throw new InvalidOperationException(
                 "Step 3 must be completed first.");
         }
 
-        if (application.QualificationType != QualificationType.Secondary &&
-            application.QualificationType != QualificationType.Bachelor)
-        {
-            throw new InvalidOperationException(
-                "Document requirements for this qualification are not configured yet.");
-        }
-        var requiredDocumentTypes = new[]
-            {
-        DocumentType.PersonalPhoto,
-        DocumentType.PassportOrApprovedId,
-        DocumentType.BachelorCertificate,
-        DocumentType.BachelorTranscript
-    };
+        // Get required documents based on qualification type
+        var requiredDocumentTypes = GetRequiredDocumentTypes(
+            application.QualificationType);
 
         var uploadedDocumentTypes = await _context.ApplicationDocuments
             .Where(d =>
@@ -666,7 +870,7 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
                 "All required documents must be uploaded before completing Step 4.");
         }
 
-        if (application.CurrentStep == 3)
+        if (application.CurrentStep < 4)
         {
             application.CurrentStep = 4;
 
@@ -676,8 +880,8 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
 
     // =========================================================
     // STEP 5 - APPLICATION REVIEW
+    // Get application details for review before submission
     // =========================================================
-
 
     public async Task<EquivalencyApplicationReviewDto> GetReviewAsync(
         string applicantId,
@@ -789,9 +993,9 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
         return review;
     }
 
-
     // =========================================================
     // STEP 6 - APPLICATION SUBMISSION
+    // Validate and submit the application
     // =========================================================
 
     public async Task<SubmitApplicationResponseDto> SubmitAsync(
@@ -815,11 +1019,8 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
                 "Equivalency application not found.");
         }
 
-        if (application.Status != "Draft")
-        {
-            throw new InvalidOperationException(
-                "Only draft applications can be submitted.");
-        }
+        // Only Draft or Submitted applications can be processed here.
+        EnsureApplicationCanBeEdited(application);
 
         if (application.CurrentStep < 4)
         {
@@ -900,13 +1101,8 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
         // Validate Required Documents
         // =========================================================
 
-        var requiredDocumentTypes = new[]
-        {
-        DocumentType.PersonalPhoto,
-        DocumentType.PassportOrApprovedId,
-        DocumentType.BachelorCertificate,
-        DocumentType.BachelorTranscript
-    };
+        var requiredDocumentTypes = GetRequiredDocumentTypes(
+            application.QualificationType);
 
         var uploadedDocumentTypes = application.Documents
             .Select(d => d.DocumentType)
@@ -926,10 +1122,15 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
         // Submit Application
         // =========================================================
 
-        application.Status = "Submitted";
+        // Keep Submitted status if the application was already submitted.
+        // A new submission timestamp is recorded only for the first submission.
+        if (application.Status == "Draft")
+        {
+            application.Status = "Submitted";
+            application.SubmittedAt = DateTime.UtcNow;
+        }
 
-        application.SubmittedAt = DateTime.UtcNow;
-
+        // Keep the application on the final workflow step.
         application.CurrentStep = 6;
 
         await _context.SaveChangesAsync();
@@ -942,7 +1143,7 @@ public class EquivalencyApplicationService : IEquivalencyApplicationService
 
             CurrentStep = application.CurrentStep,
 
-            SubmittedAt = application.SubmittedAt.Value
+            SubmittedAt = application.SubmittedAt ?? DateTime.UtcNow
         };
     }
 }

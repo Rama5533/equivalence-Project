@@ -1,7 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using API.Enums;
 
 namespace API.DTOs.EquivalencyApplication;
@@ -10,8 +7,10 @@ public class CreateEquivalencyApplicationDto
 {
     public QualificationType QualificationType { get; set; }
 
-    public PreviousQualificationDto? PreviousQualification { get; set; }
+    public List<PreviousQualificationDto> PreviousQualifications { get; set; }
+        = new();
 }
+
 public class PreviousQualificationDto
 {
     public QualificationType QualificationType { get; set; }

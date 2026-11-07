@@ -338,21 +338,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
                 new QualificationRequirement
                 {
                     Id = 5,
-                    QualificationType = QualificationType.PhD,
+                    QualificationType = QualificationType.doctorate,
                     RequiredQualificationType = QualificationType.Secondary
                 },
 
                 new QualificationRequirement
                 {
                     Id = 6,
-                    QualificationType = QualificationType.PhD,
+                    QualificationType = QualificationType.doctorate,
                     RequiredQualificationType = QualificationType.Bachelor
                 },
 
                 new QualificationRequirement
                 {
                     Id = 7,
-                    QualificationType = QualificationType.PhD,
+                    QualificationType = QualificationType.doctorate,
                     RequiredQualificationType = QualificationType.Master
                 }
                 ,

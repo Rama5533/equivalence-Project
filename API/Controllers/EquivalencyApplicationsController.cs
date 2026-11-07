@@ -175,45 +175,45 @@ public class EquivalencyApplicationsController : ControllerBase
     }
 
 
-    // =========================================================
-    // STEP 4 - UPLOAD DOCUMENT
-    // POST: /api/EquivalencyApplications/{applicationId}/step4/documents
-    // =========================================================
+// =========================================================
+// STEP 4 - UPLOAD DOCUMENT
+// POST: /api/EquivalencyApplications/{applicationId}/step4/documents
+// =========================================================
 
-    [HttpPost("{applicationId}/step4/documents")]
-    public async Task<ActionResult<UploadDocumentResponseDto>> UploadDocument(
-        int applicationId,
-        [FromForm] DocumentType documentType,
-        [FromForm] IFormFile file)
+[HttpPost("{applicationId}/step4/documents")]
+[Consumes("multipart/form-data")]
+public async Task<ActionResult<UploadDocumentResponseDto>> UploadDocument(
+    int applicationId,
+    [FromForm] DocumentType documentType,
+    IFormFile file)
+{
+    var applicantId = User.FindFirstValue(
+        ClaimTypes.NameIdentifier);
+
+    if (string.IsNullOrEmpty(applicantId))
     {
-        var applicantId = User.FindFirstValue(
-            ClaimTypes.NameIdentifier);
-
-        if (string.IsNullOrEmpty(applicantId))
-        {
-            return Unauthorized();
-        }
-
-        try
-        {
-            var result = await _service.UploadDocumentAsync(
-                applicantId,
-                applicationId,
-                documentType,
-                file);
-
-            return Ok(result);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(ex.Message);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        return Unauthorized();
     }
 
+    try
+    {
+        var result = await _service.UploadDocumentAsync(
+            applicantId,
+            applicationId,
+            documentType,
+            file);
+
+        return Ok(result);
+    }
+    catch (KeyNotFoundException ex)
+    {
+        return NotFound(ex.Message);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
 
     // =========================================================
     // STEP 4 - COMPLETE

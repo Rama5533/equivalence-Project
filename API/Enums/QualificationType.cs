@@ -11,7 +11,7 @@ public enum QualificationType
     Diploma = 2,
     Bachelor = 3,
     Master = 4,
-    PhD = 5,
+    doctorate = 5,
     MediumDiploma=6,
     HigherDiploma=7
 }
