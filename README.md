@@ -16,7 +16,4 @@ Backend implementation for the **Certificate Equivalency System**, focused on co
 - Supporting structured data persistence and retrieval with SQL Server
 
 ## Setup & Running Locally
-1. Clone the repository:
-
-```bash
-git clone [https://github.com/Rama5533/equivalence-Project.git](https://github.com/Rama5533/equivalence-Project.git)
+1. Clone the repository from GitHub (`equivalence-Project`).
